@@ -1,19 +1,36 @@
 const { admin } = require("../config/firebase");
-const ResponseObj = require('../utils/ResponseObj')
+const ResponseObj = require("../utils/ResponseObj");
 
 const verifyUser = async (req, res, next) => {
     try {
-        const header = req.headers.Authorization;
-        const token = header.split(" ")[1];
-        if (!token) {
-            return res.status(401).json(ResponseObj(false, "Unauthorized", null, null));
+        // Express lowercases all headers
+        const header = req.headers["authorization"];
+
+        if (!header) {
+            return res
+                .status(401)
+                .json(ResponseObj(false, "Unauthorized: No Authorization header", null, null));
         }
+
+        // Expect format: "Bearer <token>"
+        const tokenParts = header.split(" ");
+        if (tokenParts.length !== 2 || tokenParts[0] !== "Bearer") {
+            return res
+                .status(401)
+                .json(ResponseObj(false, "Unauthorized: Invalid token format", null, null));
+        }
+
+        const token = tokenParts[1];
+
         const decoded = await admin.auth().verifyIdToken(token);
         req.user = decoded;
-        console.log(req)
+
         next();
     } catch (err) {
-        return res.json(ResponseObj(false, "Unauthorized Access", null, err));
+        console.error("verifyUser error:", err);
+        return res
+            .status(401)
+            .json(ResponseObj(false, "Unauthorized Access", null, err));
     }
 };
 
