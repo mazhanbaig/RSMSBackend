@@ -1,6 +1,5 @@
 const admin = require('firebase-admin');
 
-// Initialize Firebase
 if (!admin.apps.length) {
     try {
         const serviceAccount = {
@@ -13,10 +12,7 @@ if (!admin.apps.length) {
             credential: admin.credential.cert(serviceAccount),
             databaseURL: process.env.FIREBASE_DATABASE_URL,
         });
-
-        console.log("✅ Firebase connected successfully!");
     } catch (err) {
-        console.error("❌ Firebase connection failed:", err.message);
     }
 }
 

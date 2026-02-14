@@ -1,4 +1,5 @@
 const admin = require("firebase-admin");
+const ResponseObj = require('../utils/ResponseObj')
 
 const verifyUser = async (req, res, next) => {
     try {

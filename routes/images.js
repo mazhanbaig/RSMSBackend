@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const multer = require('multer')
 const ResponseObj = require('../utils/ResponseObj')
+const verifyUser = require('../middlewares/authMiddleware')
 const cloudinary = require('cloudinary').v2
 
 cloudinary.config({
@@ -12,7 +13,7 @@ cloudinary.config({
 
 const upload = multer({ storage: multer.memoryStorage() })
 
-router.post('/addimage', upload.single('image'), async (req, res) => {
+router.post('/addimage', verifyUser, upload.single('image'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json(
             ResponseObj(false, "No file uploaded", null, "No file attached")
@@ -47,7 +48,7 @@ router.post('/addimage', upload.single('image'), async (req, res) => {
 })
 
 
-router.post('/addimages', upload.array('images', 10), async (req, res) => {
+router.post('/addimages', verifyUser, upload.array('images', 10), async (req, res) => {
 
     if (!req.files || req.files.length === 0) {
         return res.status(400).json(ResponseObj(false, "No files uploaded", null, "No files attached"))
@@ -83,7 +84,7 @@ router.post('/addimages', upload.array('images', 10), async (req, res) => {
 })
 
 // ---------------- DELETE IMAGE ----------------
-router.delete('/deleteimage/:public_id', async (req, res) => {
+router.delete('/deleteimage/:public_id', verifyUser, async (req, res) => {
     try {
         const { public_id } = req.params
 
