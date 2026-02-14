@@ -7,10 +7,19 @@ const dataRoutes = require("./routes/data");
 const imageRoutes = require("./routes/images");
 
 const app = express();
+const allowedOrigins = ["http://localhost:3000", "https://myfrontend.com"];
 app.use(cors({
-    origin: "https://zstate.vercel.app",
-    methods: ["GET", "POST", "PUT", "DELETE"]
-})); app.use(express.json());
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error("Not allowed by CORS"));
+        }
+    },
+    credentials: true
+}));
+
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
