@@ -7,7 +7,7 @@ const dataRoutes = require("./routes/data");
 const imageRoutes = require("./routes/images");
 
 const app = express();
-const allowedOrigins = ["http://localhost:3000", "https://myfrontend.com"];
+const allowedOrigins = ["http://localhost:3000", "https://zstate.vercel.app"];
 app.use(cors({
     origin: function (origin, callback) {
         if (!origin || allowedOrigins.includes(origin)) {
