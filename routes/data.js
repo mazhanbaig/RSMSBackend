@@ -20,8 +20,15 @@ router.get("/", async (req, res) => {
 
 // ---------------- SAVE DATA ----------------
 router.post("/", async (req, res) => {
+    // FIX: Add this destructuring line (this should be line 23)
     const { path, data } = req.body;
 
+    if (!path || !data) {
+        return res.status(400).json({
+            success: false,
+            message: "Missing 'path' or 'data' in request body"
+        });
+    }
     try {
         await db.ref(path).set(data);
         res.status(201).json(ResponseObj(true, "Data saved successfully"));
@@ -37,7 +44,7 @@ router.put("/", async (req, res) => {
 
     try {
         await db.ref(path).update(data);
-        res.status(201).json(ResponseObj(true, "Data updated successfully"));
+        res.status(200).json(ResponseObj(true, "Data updated successfully"));
     } catch (err) {
         console.error(err);
         res.status(500).json(ResponseObj(false, "Failed to update data", null, err.message));
@@ -49,7 +56,7 @@ router.delete("/", async (req, res) => {
     const { path } = req.body;
 
     try {
-        await db.ref(path).remove(); // same as your frontend remove()
+        await db.ref(path).remove();
         res.status(200).json(ResponseObj(true, "Data deleted successfully"));
     } catch (err) {
         console.error(err);
