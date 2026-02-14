@@ -5,7 +5,7 @@ const ResponseObj = require("../utils/ResponseObj");
 const verifyUser = require("../middlewares/authMiddleware");
 
 // ---------------- LOGIN / SAVE USER ----------------
-router.post("/", async (req, res) => {
+router.post("/", verifyUser, async (req, res) => {
     try {
         const { uid, name, email, picture } = req.user;
 
