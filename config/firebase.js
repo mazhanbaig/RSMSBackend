@@ -15,8 +15,8 @@ if (!admin.apps.length) {
         });
 
         console.log("✅ Firebase connected successfully!");
-    } catch (error) {
-        console.error("❌ Firebase connection failed:", error.message);
+    } catch (err) {
+        console.error("❌ Firebase connection failed:", err.message);
     }
 }
 
