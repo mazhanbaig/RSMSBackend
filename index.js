@@ -7,15 +7,9 @@ const dataRoutes = require("./routes/data");
 const imageRoutes = require("./routes/images");
 
 const app = express();
-const allowedOrigins = ["http://localhost:3000", "https://zstate.vercel.app"];
+
 app.use(cors({
-    origin: function (origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error("Not allowed by CORS"));
-        }
-    },
+    origin: ['http://localhost:3000', 'https://zstate.vercel.app'],
     credentials: true
 }));
 
@@ -30,3 +24,4 @@ app.use("/api/images", imageRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+ 

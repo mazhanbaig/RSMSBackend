@@ -13,41 +13,6 @@ cloudinary.config({
 
 const upload = multer({ storage: multer.memoryStorage() })
 
-router.post('/addimage', verifyUser, upload.single('image'), async (req, res) => {
-    if (!req.file) {
-        return res.status(400).json(
-            ResponseObj(false, "No file uploaded", null, "No file attached")
-        )
-    }
-
-    try {
-
-        const result = await new Promise((resolve, reject) => {
-            cloudinary.uploader.upload_stream(
-                { folder: "ZStateImages" },
-                (error, result) => {
-                    if (error) reject(error)
-                    else resolve(result)
-                }
-            ).end(req.file.buffer)
-        })
-
-        res.status(201).json(
-            ResponseObj(true, "Uploaded successfully", {
-                url: result.secure_url,
-                public_id: result.public_id
-            }, null)
-        )
-
-    } catch (error) {
-        console.log(error)
-        res.status(500).json(
-            ResponseObj(false, "Upload failed", null, error.message)
-        )
-    }
-})
-
-
 router.post('/addimages', verifyUser, upload.array('images', 10), async (req, res) => {
 
     if (!req.files || req.files.length === 0) {
