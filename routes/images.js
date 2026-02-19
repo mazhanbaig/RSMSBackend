@@ -44,10 +44,9 @@ router.post('/addimages', verifyUser, upload.array('images', 10), async (req, re
 
     } catch (error) {
         console.log(error)
-        res.status(500).json(ResponseObj(false, "Upload failed", null, error))
+        res.status(500).json(ResponseObj(false, "Upload failed", null, error.message))
     }
 })
-
 // ---------------- DELETE IMAGE ----------------
 router.delete('/deleteimage/:public_id', verifyUser, async (req, res) => {
     try {
