@@ -18,9 +18,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-// app.use("/api/payments", paymentRoutes);
+app.use("/api/payment", paymentRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/data", dataRoutes);
 app.use("/api/images", imageRoutes);
+
+app.listen('5000', () => {
+    
+})
 
 module.exports = app;
