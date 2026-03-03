@@ -5,7 +5,6 @@ const paymentRoutes = require("./routes/payment");
 const authRoutes = require("./routes/auth");
 const dataRoutes = require("./routes/data");
 const imageRoutes = require("./routes/images");
-const notificationRoutes = require("./routes/notifications");
 
 const app = express();
 
@@ -23,7 +22,6 @@ app.use("/api/payment", paymentRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/data", dataRoutes);
 app.use("/api/images", imageRoutes);
-app.use("/api/notifications", notificationRoutes);
 
 app.listen('5000', () => {
     
