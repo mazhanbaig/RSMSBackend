@@ -17,7 +17,7 @@ const verifyUser = async (req, res, next) => {
         if (tokenParts.length !== 2 || tokenParts[0] !== "Bearer") {
             return res
                 .status(401)
-                .json(ResponseObj(false, "Unauthorized: Invalid token format", null, null));
+                .json(ResponseObj(false, "Unauthorized Access", null, null));
         }
 
         const token = tokenParts[1];

@@ -3,9 +3,10 @@ const router = express.Router();
 const { db } = require("../config/firebase");
 const ResponseObj = require("../utils/ResponseObj");
 const verifyUser = require("../middlewares/authMiddleware");
+const verifySubscription = require("../middlewares/subscription.middleware");
 
 // ---------------- GET DATA ----------------
-router.get("/", verifyUser, async (req, res) => {
+router.get("/", verifyUser, verifySubscription, async (req, res) => {
     const { path } = req.query;
 
     if (!path) {
