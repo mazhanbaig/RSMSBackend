@@ -6,7 +6,7 @@ const verifyUser = require("../middlewares/authMiddleware");
 const verifySubscription = require("../middlewares/subscription.middleware");
 
 // ---------------- GET DATA ----------------
-router.get("/", verifyUser, verifySubscription, async (req, res) => {
+router.get("/", verifyUser, async (req, res) => {
     const { path } = req.query;
 
     if (!path) {
