@@ -32,8 +32,8 @@ router.post("/", verifyUser, async (req, res) => {
         return res.status(400).json(ResponseObj(false, "Missing 'path' or 'data' in request body", null, null));
     }
     try {
-        await db.ref(path).set(data);
-        res.status(201).json(ResponseObj(true, "Data saved successfully"));
+        let data=await db.ref(path).set(data);
+        res.status(201).json(ResponseObj(true, "Data saved successfully",data));
     } catch (err) {
         console.error(err);
         res.status(500).json(ResponseObj(false, "Failed to save data", null, err.message));
