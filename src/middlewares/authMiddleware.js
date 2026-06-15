@@ -3,7 +3,6 @@ const ResponseObj = require("../utils/ResponseObj");
 
 const verifyUser = async (req, res, next) => {
     try {
-        // Express lowercases all headers
         const header = req.headers["authorization"];
 
         if (!header) {
@@ -30,8 +29,14 @@ const verifyUser = async (req, res, next) => {
         console.error("verifyUser error:", err);
         return res
             .status(401)
-            .json(ResponseObj(false, "Unauthorized Access", null, err));
-    }
+            .json(
+                ResponseObj(
+                    false,
+                    "Unauthorized Access",
+                    null,
+                    process.env.NODE_ENV === "development" ? err.message : null
+                )
+            )    }
 };
 
 module.exports = verifyUser;
