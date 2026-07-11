@@ -1,16 +1,16 @@
+const Sentry = require('@sentry/node');
 const ResponseObj = require("../utils/ResponseObj");
 const paymentService = require("../services/paymentService");
 const { storeTxnRefIndex } = require("../services/paymentService");
 
 /**
  * POST /api/payment/create-payment — Create a JazzCash/Easypaisa payment payload
- * and persist a pending transaction record to Firebase.
+ * and persist a pending transaction record.
  */
 async function createPayment(req, res) {
     try {
         const { amount, email, selectedPayment } = req.body;
 
-        // Backend-side PAYMENTS_ENABLED gate
         if (process.env.PAYMENTS_ENABLED !== "true") {
             return res
                 .status(403)
@@ -24,7 +24,6 @@ async function createPayment(req, res) {
             req.user.uid
         );
 
-        // Persist a pending transaction record server-side BEFORE returning to client
         await paymentService.persistTransaction({
             uid: req.user.uid,
             txnRef,
@@ -34,11 +33,11 @@ async function createPayment(req, res) {
             description: "Ultimate Package",
         });
 
-        // Store reverse index for webhook uid resolution
         await storeTxnRefIndex(txnRef, req.user.uid);
 
         res.json(ResponseObj(true, "Payment data created", { ...clientData, pp_SecureHash: secureHash }, null));
     } catch (err) {
+        Sentry.captureException(err);
         console.error(err);
         res.status(500).json(ResponseObj(false, "Payment creation failed", null, err.message));
     }

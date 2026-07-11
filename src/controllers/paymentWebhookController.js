@@ -1,8 +1,8 @@
+const Sentry = require('@sentry/node');
 const webhookService = require('../services/paymentWebhookService');
 
 /**
  * POST /api/payment/webhook/jazzcash — Receive JazzCash callback/confirmation.
- * Not hard-blocked by PAYMENTS_ENABLED — safe no-op when disabled.
  */
 async function jazzcashWebhook(req, res) {
     try {
@@ -17,6 +17,7 @@ async function jazzcashWebhook(req, res) {
         const httpStatus = result.status === 'rejected' ? 400 : 200;
         return res.status(httpStatus).json(result);
     } catch (err) {
+        Sentry.captureException(err);
         console.error('[Webhook] jazzcash error:', err);
         return res.status(500).json({ status: 'error', message: 'Internal server error processing webhook' });
     }
@@ -24,7 +25,6 @@ async function jazzcashWebhook(req, res) {
 
 /**
  * POST /api/payment/webhook/easypaisa — Receive Easypaisa callback/confirmation.
- * Not hard-blocked by PAYMENTS_ENABLED — safe no-op when disabled.
  */
 async function easypaisaWebhook(req, res) {
     try {
@@ -39,6 +39,7 @@ async function easypaisaWebhook(req, res) {
         const httpStatus = result.status === 'rejected' ? 400 : 200;
         return res.status(httpStatus).json(result);
     } catch (err) {
+        Sentry.captureException(err);
         console.error('[Webhook] easypaisa error:', err);
         return res.status(500).json({ status: 'error', message: 'Internal server error processing webhook' });
     }
