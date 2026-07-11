@@ -72,8 +72,9 @@ async function deleteUser(uid) {
     const prisma = getPrisma();
 
     // 1. Delete from Postgres — cascade deletes handle all entity records
-    await prisma.user.deleteMany({ where: { uid } });
-    await prisma.organization.deleteMany({ where: { id: uid } });
+    // Note: Must use delete() (not deleteMany) — only singular delete triggers cascade!
+    await prisma.user.delete({ where: { uid } });
+    await prisma.organization.delete({ where: { id: uid } });
 
     // 2. Clean up Firebase RTDB
     const paths = [
