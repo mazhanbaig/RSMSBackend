@@ -1,11 +1,12 @@
 const express = require("express");
 const router = express.Router();
-const { db, admin } = require("../config/firebase");
+const { db, auth } = require("../config/firebase");
 const ResponseObj = require("../utils/ResponseObj");
 const verifyUser = require("../middlewares/authMiddleware");
+const { validateAuthData } = require("../middlewares/validate");
 
 // ---------------- LOGIN / SAVE USER ----------------
-router.post("/", verifyUser, async (req, res) => {
+router.post("/", verifyUser, validateAuthData, async (req, res) => {
     try {
         const { uid, name, email, picture } = req.user;
 
@@ -33,7 +34,7 @@ router.post("/logout", verifyUser, async (req, res) => {
     try {
         const uid = req.user.uid;
 
-        await admin.auth().revokeRefreshTokens(uid);
+        await auth.revokeRefreshTokens(uid);
 
         res.status(200).json(
             ResponseObj(true, "Logged out from all devices", null, null)

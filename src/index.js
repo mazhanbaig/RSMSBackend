@@ -1,6 +1,10 @@
 require('dotenv').config();
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
+const pino = require('pino-http')();
+const { Redis } = require("@upstash/redis");
+const { Ratelimit } = require("@upstash/ratelimit");
 
 const paymentRoutes = require("./routes/payment");
 const authRoutes = require("./routes/auth");
@@ -9,16 +13,98 @@ const imageRoutes = require("./routes/images");
 
 const app = express();
 
+app.use(helmet());
+app.use(pino);
+
 app.use(cors({
     origin: [
         'http://localhost:3000',
+        'http://localhost:3001',
         'https://zstate.vercel.app'
     ],
     credentials: true
 }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// ─── Rate Limiting ────────────────────────────────────────────────────
+// Rate limiting uses Upstash Redis for shared state across Vercel serverless instances.
+// If UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN are not set, rate limiting
+// falls back to in-memory (which won't work across serverless instances — a warning is logged).
+//
+// Global limiter: 100 requests per 15 min per IP UNLESS using Upstash Redis, where
+// we use @upstash/ratelimit's sliding window (more accurate for serverless).
+
+let globalLimiter, strictLimiter;
+
+if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    const redis = new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+
+    const globalRatelimit = new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(100, '15 m'),
+        prefix: "rsms:global",
+    });
+
+    const strictRatelimit = new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(30, '15 m'),
+        prefix: "rsms:strict",
+    });
+
+    globalLimiter = (req, res, next) => {
+        globalRatelimit.limit(req.ip).then(({ success }) => {
+            if (!success) {
+                return res.status(429).json({ success: false, message: "Too many requests, please try again later" });
+            }
+            next();
+        }).catch(() => next());
+    };
+
+    strictLimiter = (req, res, next) => {
+        strictRatelimit.limit(req.ip).then(({ success }) => {
+            if (!success) {
+                return res.status(429).json({ success: false, message: "Too many requests, please try again later" });
+            }
+            next();
+        }).catch(() => next());
+    };
+
+    console.log("Rate limiting: Using Upstash Redis (shared store for serverless)");
+} else {
+    // Fallback: in-memory store (NOT shared across Vercel instances — warn)
+    console.warn("Rate limiting: UPSTASH_REDIS_REST_URL/REST_TOKEN not set — falling back to in-memory store. Rate limiting will NOT be shared across serverless instances.");
+
+    const rateLimit = require("express-rate-limit");
+
+    globalLimiter = rateLimit({
+        windowMs: 15 * 60 * 1000,
+        max: 100,
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: { success: false, message: "Too many requests, please try again later" },
+    });
+
+    strictLimiter = rateLimit({
+        windowMs: 15 * 60 * 1000,
+        max: 30,
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: { success: false, message: "Too many requests, please try again later" },
+    });
+}
+
+app.use(globalLimiter);
+
+// Stricter limiter for auth and data mutation endpoints
+app.use("/api/auth", strictLimiter);
+app.use("/api/data", strictLimiter);
+
+// Payment routes get the default global limiter only (no special limiting per instructions)
 
 app.use("/api/payment", paymentRoutes);
 app.use("/api/auth", authRoutes);
@@ -26,5 +112,3 @@ app.use("/api/data", dataRoutes);
 app.use("/api/images", imageRoutes);
 
 module.exports = app;
-
-//  eyJhbGciOiJSUzI1NiIsImtpZCI6IjJhYWM0MWY3NTA4OGZlOGUwOWEwN2Q0NDRjZmQ2YjhjZTQ4MTJhMzEiLCJ0eXAiOiJKV1QifQ.eyJuYW1lIjoiTXVoYW1tYWQgQXpoYW4gQmFpZyIsInBpY3R1cmUiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS9BQ2c4b2NJVFlIMVVNSllTbnpvQXpRcmZUaFYxUy1oWjRUdFg3NzNpUl9uMWE4bjFKQzRjLUE9czk2LWMiLCJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vcnNtcy01ZDEyMiIsImF1ZCI6InJzbXMtNWQxMjIiLCJhdXRoX3RpbWUiOjE3NzIyNjcwMzIsInVzZXJfaWQiOiI5TVZvMmpkOUtGV0FiRkprRnJGVW9PQTVpZ0QyIiwic3ViIjoiOU1WbzJqZDlLRldBYkZKa0ZyRlVvT0E1aWdEMiIsImlhdCI6MTc3MjI3NjAxOCwiZXhwIjoxNzcyMjc5NjE4LCJlbWFpbCI6Im1hemhhbmJhaWc0NEBnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiZmlyZWJhc2UiOnsiaWRlbnRpdGllcyI6eyJnb29nbGUuY29tIjpbIjExMjQwODA5MTY1NTcyNDM2NjY0NSJdLCJlbWFpbCI6WyJtYXpoYW5iYWlnNDRAZ21haWwuY29tIl19LCJzaWduX2luX3Byb3ZpZGVyIjoiZ29vZ2xlLmNvbSJ9fQ.pescuT7rdX3Rct0NQcyIUZXo-KFV_3wTX0XTEPri8Ze2rQZg0pheBxf2OorRV1VLOAOa4pnUct4ZpoSUvCt-UmOQjx6g5dEwgMH_dFxuYnrmzD1msL-OjP11ZbsLpiMXGjeU99mAeuSxLYdFsgcJFhINwR05RKLoazO6zcywZby4X7pfg_9Vtk5OsaSt1EK4himcidxgUfFJnq8RoImU9wyn_JfMSOrdrLF5AGq2dO4zKpY3DAG6NzswI_Ta_LYoVlqZ5_MLbFRVFdlMg8Pa3JAIa1a7rx-aUNmOC83erXrDz6qeZm58BdJYEEtCcyHP4DsWvYgYkuW4qDikoj1L0g

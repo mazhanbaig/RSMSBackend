@@ -1,4 +1,4 @@
-const { admin } = require("../config/firebase");
+const { auth } = require("../config/firebase");
 const ResponseObj = require("../utils/ResponseObj");
 
 const verifyUser = async (req, res, next) => {
@@ -21,7 +21,7 @@ const verifyUser = async (req, res, next) => {
 
         const token = tokenParts[1];
 
-        const decoded = await admin.auth().verifyIdToken(token);
+        const decoded = await auth.verifyIdToken(token);
         req.user = decoded;
 
         next();
