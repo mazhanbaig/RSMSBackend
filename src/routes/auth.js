@@ -1,49 +1,13 @@
 const express = require("express");
 const router = express.Router();
-const { db, auth } = require("../config/firebase");
-const ResponseObj = require("../utils/ResponseObj");
 const verifyUser = require("../middlewares/authMiddleware");
 const { validateAuthData } = require("../middlewares/validate");
+const authController = require("../controllers/authController");
 
 // ---------------- LOGIN / SAVE USER ----------------
-router.post("/", verifyUser, validateAuthData, async (req, res) => {
-    try {
-        const { uid, name, email, picture } = req.user;
+router.post("/", verifyUser, validateAuthData, authController.login);
 
-        await db.ref("users/" + uid).update({
-            uid,
-            name,
-            email,
-            photoURL: picture,
-            provider: "google",
-            createdAt: new Date().toISOString(),
-        });
-
-        res.status(200).json(
-            ResponseObj(true, "User saved successfully", null, null)
-        );
-    } catch (err) {
-        res.status(500).json(
-            ResponseObj(false, "Failed to save user", null, err.message)
-        );
-    }
-});
-
-// ---------------- FORCE LOGOUT  ----------------
-router.post("/logout", verifyUser, async (req, res) => {
-    try {
-        const uid = req.user.uid;
-
-        await auth.revokeRefreshTokens(uid);
-
-        res.status(200).json(
-            ResponseObj(true, "Logged out from all devices", null, null)
-        );
-    } catch (err) {
-        res.status(500).json(
-            ResponseObj(false, "Logout failed", null, err.message)
-        );
-    }
-});
+// ---------------- FORCE LOGOUT ----------------------
+router.post("/logout", verifyUser, authController.logout);
 
 module.exports = router;
