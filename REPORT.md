@@ -286,8 +286,209 @@ Prevents unbounded payload-based memory/DoS pressure on serverless functions. 1M
 
 ---
 
-## NEXT PHASES
+## PHASE 3 — DATABASE MIGRATION: Firebase RTDB → Postgres (Neon)
 
-Phase 3 — Layered restructure (routes → controllers → services)
-Phase 4 — Complete payment logic (JazzCash + Easypaisa, webhooks)
-Phase 5 — Payment enablement guide (PAYMENTS_ENABLEMENT_GUIDE.md)
+**Started:** July 11, 2026 (continued)
+**Git branch:** `dev` → merged to `main`
+**Scope:** Full migration — schema design through cutover of the live API
+
+---
+
+### SCHEMA DESIGN — `prisma/schema.prisma`
+
+8 models with proper foreign key relations:
+
+```
+Organization → User → { Client, Owner, Property, Event, Task, Transaction }
+```
+
+Key design decisions:
+- **Organization**: One per user (id = uid) for solo-agent pattern, ready for multi-tenancy
+- **User**: `uid` (Firebase Auth) is `@unique`, `email` is required + `@unique`
+- **Subscription fields**: `subscriptionStatus` + `subscriptionExpiry` on User (was in Firebase RTDB only)
+- **Client**: Added `budgetMin`/`budgetMax` (Decimal), `preferences`, `status` fields
+- **Property**: `price` as `Decimal(12,2)` instead of raw string, added `clientId` FK
+- **Event**: `startTime` (required DateTime), `clientId` + `propertyId` FK relations
+- **Task**: `priority` required, `clientId` + `propertyId` FK relations
+- **Transaction**: `gateway` field alongside persisted payment metadata
+- **Cascade deletes**: `onDelete: Cascade` on all User→entity FKs, `onDelete: SetNull` on optional FKs
+
+**Verification:**
+```
+$ npx prisma format → clean
+$ npx prisma validate → schema is valid
+$ npx prisma db push --accept-data-loss → database is now in sync
+```
+
+**Status:** ✅ COMPLETE
+
+---
+
+### MIGRATION — Apply to Neon
+
+Used `npx prisma db push` (Prisma v7 dropped `url` from datasource blocks — connection via `prisma.config.ts`).
+
+**Verification:** All 8 tables exist in Neon:
+```
+Organizations: 9
+Users:         9
+Clients:       9
+Owners:        6
+Properties:    5
+Events:        4
+Tasks:         7
+Transactions:  0
+```
+
+**Status:** ✅ COMPLETE
+
+---
+
+### BACKFILL — Firebase RTDB → Postgres
+
+Script: `scripts/backfillPostgres.js`
+
+Process order (respects FK dependencies):
+1. Users → creates Organization (id=uid), reads subscription status from Firebase
+2. Clients, Owners, Properties, Events, Tasks → per-user nested records
+3. Transactions → upsert by txnRef (idempotent)
+
+Data mapping:
+| Firebase RTDB | Postgres | Notes |
+|--------------|----------|-------|
+| `users/{uid}` | User + Organization | email fallback, subscription from Firebase |
+| `clients/{uid}/{id}` | Client | budgetMin/Max → Decimal, name required |
+| `owners/{uid}/{id}` | Owner | name required |
+| `properties/{uid}/{id}` | Property | price → Decimal, images → JSON string |
+| `events/{uid}/{id}` | Event | date → startTime, title required |
+| `tasks/{uid}/{id}` | Task | priority default "medium", title required |
+| `transactions/{uid}/{txnRef}` | Transaction | gateway derived from paymentMethod |
+
+**Verification:**
+```
+=== Backfill: Firebase RTDB → Postgres (Neon) ===
+  User           : 9 read → 9 written, 0 failed
+  Client         : 9 read → 9 written, 0 failed
+  Owner          : 6 read → 6 written, 0 failed
+  Property       : 5 read → 5 written, 0 failed
+  Event          : 4 read → 4 written, 0 failed
+  Task           : 7 read → 7 written, 0 failed
+  Transaction    : 0 read → 0 written, 0 failed
+  TOTAL          : 40 read → 40 written, 0 failed
+```
+
+**Status:** ✅ COMPLETE
+
+---
+
+### FULL CUTOVER — Replace Generic `/api/data` with Per-Entity REST Routes
+
+#### New Routes
+
+| Endpoint | Methods | Description |
+|----------|---------|-------------|
+| `/api/clients` | GET, POST | List mine, create |
+| `/api/clients/:id` | GET, PUT, DELETE | Get one, update, delete |
+| `/api/owners` | GET, POST | List mine, create |
+| `/api/owners/:id` | GET, PUT, DELETE | Get one, update, delete |
+| `/api/properties` | GET, POST | List mine, create |
+| `/api/properties/:id` | GET, PUT, DELETE | Get one, update, delete |
+| `/api/events` | GET, POST | List mine, create |
+| `/api/events/:id` | GET, PUT, DELETE | Get one, update, delete |
+| `/api/tasks` | GET, POST | List mine, create |
+| `/api/tasks/:id` | GET, PUT, DELETE | Get one, update, delete |
+
+Each entity follows the same three-layer architecture:
+- `src/routes/<entity>.js` — thin, just middleware chain + controller call
+- `src/controllers/<entity>Controller.js` — extracts `req.user.uid`, resolves Postgres User.id, calls service, formats response via ResponseObj
+- `src/services/<entity>Service.js` — actual Prisma calls (findMany, create, update, delete), every query scoped by userId
+
+**Ownership isolation**: Every `:id` route fetches by `id + userId` together, never `id` alone. A mismatched id+user returns 404.
+
+**Files created:**
+- `src/config/database.js` — shared Prisma client singleton + `resolveUserId()`
+- 5 route files, 5 controller files, 5 service files
+- `src/middlewares/validate.js` — 5 new entity validators (old data validators removed)
+
+**Files deleted:**
+- `src/routes/data.js`, `src/controllers/dataController.js`, `src/services/dataService.js`
+
+**Files modified:**
+- `src/index.js` — 5 new routes wired, `/api/data` rate limit + mount removed
+- `src/services/authService.js` — now creates/updates User + Organization in Postgres on login (Firebase RTDB kept as fallback)
+- `src/services/paymentService.js` — persistTransaction, updateTransaction, activateSubscription, resolveUidFromTxnRef all use Prisma with Firebase fallback
+
+#### Verification
+```
+$ node -c <all 34 source files>
+→ ALL SYNTAX OK (34/34)
+```
+
+**Status:** ✅ COMPLETE
+
+---
+
+### ADDITIONAL FOLLOW-UPS EXECUTED
+
+#### Frontend Migration Guide (`FRONTEND_MIGRATION_GUIDE.md`)
+Comprehensive mapping of old `/api/data?path=...` calls to new entity REST endpoints, with request/response examples, field differences, and unchanged routes.
+
+#### Cascade Deletes
+- Prisma schema updated with `onDelete: Cascade` on all User→entity FKs
+- `DELETE /api/auth/account` endpoint added (`authController.deleteAccount`)
+- Deletes user from Postgres (cascade handles all entity records), cleans Firebase RTDB, revokes Firebase Auth tokens
+
+**Bug caught & fixed during review:** `deleteMany()` bypasses Prisma cascade — must use `delete({ where: { uid } })` instead.
+
+#### Service Tests (Jest)
+```
+Test Suites: 3 passed, 3 total
+Tests:       26 passed, 26 total
+```
+- `tests/services/clientService.test.js` — 10 tests (ownership isolation, CRUD)
+- `tests/services/ownerService.test.js` — 8 tests
+- `tests/services/propertyService.test.js` — 8 tests
+- Every test validates user A can access their data, user B gets 404 for user A's data
+
+#### Sentry Error Monitoring (`@sentry/node`)
+- Initialized in `src/index.js` (guarded by `SENTRY_DSN` env var)
+- Global Express error handler middleware capturing to Sentry
+- All 8 controllers call `Sentry.captureException(err)` in every catch block
+
+---
+
+## CURRENT STATE SUMMARY
+
+| Metric | Before (Phases 1-2) | After (Phases 3-5) |
+|--------|--------|-------|
+| Database | Firebase RTDB only | Postgres (Neon) primary + Firebase RTDB fallback |
+| Data API | Single `/api/data` (path-based) | 5 per-entity REST routes |
+| Auth on login | Writes to Firebase RTDB | Writes to Postgres + Firebase RTDB |
+| Payment persistence | Firebase RTDB only | Postgres + Firebase RTDB |
+| Subscription | Firebase RTDB only | Postgres + Firebase RTDB |
+| Error monitoring | None | Sentry (all controllers) |
+| Tests | None | 26 Jest tests (ownership isolation) |
+| Cascade deletes | None | Schema-level + DELETE /api/auth/account |
+| Prisma schema | Basic (init migration) | 8 models, proper FK relations, cascade |
+| Backfill script | For old schema | Updated for new schema with upsert |
+| npm audit | 6 moderate | 9 moderate (new: @sentry/node transitive, same optional-deps) |
+| Frontend docs | None | FRONTEND_MIGRATION_GUIDE.md |
+
+---
+
+## FIREBASE RTDB STATUS
+
+**Unchanged.** All Firebase RTDB data remains intact and readable. The Postgres migration was write-only against Firebase (read all data, never delete or modify). Firebase RTDB stays as the complete rollback safety net. If a rollback is needed, set `PAYMENTS_ENABLED=false` and revert the code — the generic `/api/data` handler is deleted but can be restored from git history.
+
+---
+
+## FRONTEND NOTE
+
+The old `/api/data?path=clients/{uid}/{id}` pattern is removed. Frontend must update to:
+- `GET /api/clients` → list (new capability — old API only supported single-record fetches)
+- `POST /api/clients` → create
+- `GET /api/clients/:id` → get one
+- `PUT /api/clients/:id` → update
+- `DELETE /api/clients/:id` → delete
+
+See `FRONTEND_MIGRATION_GUIDE.md` for the complete mapping with examples.
