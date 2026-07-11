@@ -17,16 +17,19 @@ router.post("/create-payment", verifyUser, validatePaymentData, (req, res) => {
         }
 
         const merchantId = process.env.JAZZCASH_MERCHANT_ID;
+        const password = process.env.JAZZCASH_PASSWORD;
         const integritySalt = process.env.JAZZCASH_INTEGRITY_SALT;
 
         const txnRef = "TXN_" + Date.now();
         const txnDateTime = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
 
-        const paymentData = {
+        // Build full payment data including password for HMAC calculation (server-side only)
+        const hashInput = {
             pp_Version: "1.1",
             pp_TxnType: "MWALLET",
             pp_Language: "EN",
             pp_MerchantID: merchantId,
+            pp_Password: password,
             pp_TxnRefNo: txnRef,
             pp_Amount: amount + "00",
             pp_TxnCurrency: "PKR",
@@ -35,8 +38,11 @@ router.post("/create-payment", verifyUser, validatePaymentData, (req, res) => {
             pp_Description: "Ultimate Package",
             pp_ReturnURL: `${process.env.BASE_URL}/payment-callback?paymentMethod=${selectedPayment}`};
 
-        // Create secure hash (integrity salt used server-side only; password never sent to client)
-        const sortedString = integritySalt + "&" + Object.values(paymentData).join("&");
+        // Client-facing payload — same fields EXCEPT the raw password
+        const { pp_Password: _, ...paymentData } = hashInput;
+
+        // Create secure hash (includes password for gateway verification, but password is NOT in paymentData sent to client)
+        const sortedString = integritySalt + "&" + Object.values(hashInput).join("&");
         const secureHash = crypto
             .createHmac("sha256", integritySalt)
             .update(sortedString)
