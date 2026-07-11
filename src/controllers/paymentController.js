@@ -1,7 +1,6 @@
 const Sentry = require('@sentry/node');
 const ResponseObj = require("../utils/ResponseObj");
 const paymentService = require("../services/paymentService");
-const { storeTxnRefIndex } = require("../services/paymentService");
 
 /**
  * POST /api/payment/create-payment — Create a JazzCash/Easypaisa payment payload
@@ -33,7 +32,7 @@ async function createPayment(req, res) {
             description: "Ultimate Package",
         });
 
-        await storeTxnRefIndex(txnRef, req.user.uid);
+        await paymentService.storeTxnRefIndex(txnRef, req.user.uid);
 
         res.json(ResponseObj(true, "Payment data created", { ...clientData, pp_SecureHash: secureHash }, null));
     } catch (err) {
