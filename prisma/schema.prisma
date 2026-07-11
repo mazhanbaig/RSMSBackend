@@ -1,0 +1,231 @@
+// ─── Prisma Schema — BackendRSMS ────────────────────────────────────
+// Maps existing Firebase RTDB structure to Neon Postgres.
+// Designed per spec: Organization → User → { Client, Owner, Property, Event, Task, Transaction }
+// All entities scoped by uid (Firebase Auth) for ownership and orgId for multi-tenancy.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Organization ───────────────────────────────────────────────────
+// One org per user for now (solo-agent pattern). Multi-tenancy later.
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  users User[]
+}
+
+// ─── User ───────────────────────────────────────────────────────────
+// Maps from users/{uid} in Firebase RTDB.
+// uid is the Firebase Auth UID — the link from authMiddleware.js.
+// orgId references Organization.id for future multi-tenancy.
+
+model User {
+  id                 String       @id @default(cuid())
+  uid                String       @unique
+  name               String?
+  email              String       @unique
+  orgId              String
+  organization       Organization @relation(fields: [orgId], references: [id])
+  subscriptionStatus String?
+  subscriptionExpiry DateTime?
+  photoURL           String?
+  provider           String?
+  createdAt          DateTime     @default(now())
+
+  clients      Client[]
+  owners       Owner[]
+  properties   Property[]
+  events       Event[]
+  tasks        Task[]
+  transactions Transaction[]
+
+  @@index([orgId])
+  @@index([uid])
+}
+
+// ─── Client ─────────────────────────────────────────────────────────
+// Maps from clients/{uid}/{id} in Firebase RTDB
+
+model Client {
+  id    String @id @default(cuid())
+  uid   String
+  orgId String
+
+  name        String
+  email       String?
+  phone       String?
+  budgetMin   Decimal? @db.Decimal(12, 2)
+  budgetMax   Decimal? @db.Decimal(12, 2)
+  preferences String?
+  notes       String?
+  status      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  properties Property[]
+  events     Event[]
+  tasks      Task[]
+
+  @@index([uid])
+  @@index([orgId])
+  @@index([userId])
+}
+
+// ─── Owner ──────────────────────────────────────────────────────────
+// Maps from owners/{uid}/{id} in Firebase RTDB
+
+model Owner {
+  id    String @id @default(cuid())
+  uid   String
+  orgId String
+
+  name  String
+  email String?
+  phone String?
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  properties Property[]
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([uid])
+  @@index([orgId])
+  @@index([userId])
+}
+
+// ─── Property ───────────────────────────────────────────────────────
+// Maps from properties/{uid}/{id} in Firebase RTDB
+
+model Property {
+  id    String @id @default(cuid())
+  uid   String
+  orgId String
+
+  title       String
+  description String?
+  price       Decimal? @db.Decimal(12, 2)
+  status      String?
+  address     String?
+  images      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownerId  String?
+  owner    Owner?  @relation(fields: [ownerId], references: [id])
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  events Event[]
+  tasks  Task[]
+
+  @@index([uid])
+  @@index([orgId])
+  @@index([userId])
+  @@index([ownerId])
+  @@index([clientId])
+}
+
+// ─── Event ──────────────────────────────────────────────────────────
+// Maps from events/{uid}/{id} in Firebase RTDB
+
+model Event {
+  id    String @id @default(cuid())
+  uid   String
+  orgId String
+
+  title       String
+  description String?
+  startTime   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  clientId   String?
+  client     Client?   @relation(fields: [clientId], references: [id])
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([uid])
+  @@index([orgId])
+  @@index([userId])
+}
+
+// ─── Task ───────────────────────────────────────────────────────────
+// Maps from tasks/{uid}/{id} in Firebase RTDB
+
+model Task {
+  id    String @id @default(cuid())
+  uid   String
+  orgId String
+
+  title       String
+  description String?
+  priority    String
+  completed   Boolean   @default(false)
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  clientId   String?
+  client     Client?   @relation(fields: [clientId], references: [id])
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([uid])
+  @@index([orgId])
+  @@index([userId])
+  @@index([completed])
+}
+
+// ─── Transaction ────────────────────────────────────────────────────
+// Maps from transactions/{uid}/{txnRef} in Firebase RTDB
+
+model Transaction {
+  id              String    @id @default(cuid())
+  uid             String
+  orgId           String
+  txnRef          String    @unique
+  amount          Decimal   @db.Decimal(12, 2)
+  status          String    @default("pending")
+  gateway         String
+  description     String?
+  gatewayResponse String?
+  gatewayMessage  String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  settledAt       DateTime?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([uid])
+  @@index([orgId])
+  @@index([userId])
+  @@index([txnRef])
+  @@index([status])
+}
