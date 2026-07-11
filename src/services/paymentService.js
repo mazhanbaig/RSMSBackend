@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { db } = require('../config/firebase');
+const { getPrisma } = require('../config/database');
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
@@ -24,7 +25,30 @@ function computeSecureHash(integritySalt, sortedString) {
 // ─── Persistence ─────────────────────────────────────────────────────
 
 async function persistTransaction({ uid, txnRef, amount, paymentMethod, status, description }) {
-    const txnRecord = {
+    const prisma = getPrisma();
+
+    // Resolve Postgres user ID
+    const user = await prisma.user.findUnique({ where: { uid } });
+    if (!user) {
+        throw new Error(`User ${uid} not found in Postgres`);
+    }
+
+    // Write to Postgres (primary)
+    await prisma.transaction.create({
+        data: {
+            uid,
+            orgId: uid,
+            txnRef,
+            amount,
+            status,
+            gateway: paymentMethod,
+            description: description || 'Ultimate Package',
+            userId: user.id,
+        },
+    });
+
+    // Also write to Firebase RTDB as rollback safety net
+    await db.ref(`transactions/${uid}/${txnRef}`).set({
         txnRef,
         amount,
         paymentMethod,
@@ -32,21 +56,46 @@ async function persistTransaction({ uid, txnRef, amount, paymentMethod, status, 
         description: description || 'Ultimate Package',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-    };
-
-    await db.ref(`transactions/${uid}/${txnRef}`).set(txnRecord);
-    return txnRecord;
+    });
 }
 
 async function updateTransaction(uid, txnRef, updates) {
-    const payload = { ...updates, updatedAt: new Date().toISOString() };
-    await db.ref(`transactions/${uid}/${txnRef}`).update(payload);
+    const prisma = getPrisma();
+
+    // Update Postgres
+    const data = { updatedAt: new Date() };
+    if (updates.status !== undefined) data.status = updates.status;
+    if (updates.gatewayResponse !== undefined) data.gatewayResponse = updates.gatewayResponse;
+    if (updates.gatewayMessage !== undefined) data.gatewayMessage = updates.gatewayMessage;
+    if (updates.settledAt !== undefined) data.settledAt = new Date(updates.settledAt);
+
+    await prisma.transaction.updateMany({
+        where: { txnRef, uid },
+        data,
+    });
+
+    // Also update Firebase RTDB
+    await db.ref(`transactions/${uid}/${txnRef}`).update({
+        ...updates,
+        updatedAt: new Date().toISOString(),
+    });
 }
 
 async function activateSubscription(uid, plan, durationDays) {
+    const prisma = getPrisma();
     const now = new Date();
     const expiryDate = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
+    // Update Postgres
+    await prisma.user.updateMany({
+        where: { uid },
+        data: {
+            subscriptionStatus: 'active',
+            subscriptionExpiry: expiryDate,
+        },
+    });
+
+    // Update Firebase RTDB
     await db.ref(`users/${uid}/subscription`).set({
         status: 'active',
         plan,
@@ -57,14 +106,6 @@ async function activateSubscription(uid, plan, durationDays) {
 
 // ─── JazzCash ────────────────────────────────────────────────────────
 
-/**
- * Build JazzCash payment payload and compute secure hash.
- * @param {number} amount
- * @param {string} selectedPayment - "jazzcash"
- * @param {string} returnBaseUrl
- * @param {string} uid - User UID (embedded in ReturnURL for webhook resolution)
- * @returns {{ clientData: object, secureHash: string, txnRef: string }}
- */
 function buildJazzCashPayment(amount, selectedPayment, returnBaseUrl, uid) {
     const merchantId = process.env.JAZZCASH_MERCHANT_ID;
     const password = process.env.JAZZCASH_PASSWORD;
@@ -73,7 +114,6 @@ function buildJazzCashPayment(amount, selectedPayment, returnBaseUrl, uid) {
     const txnRef = generateTxnRef(uid, amount);
     const txnDateTime = formatTxnDateTime();
 
-    // The EXACT set of fields used for HMAC — must match what the gateway uses
     const hashInput = {
         pp_Version: '1.1',
         pp_TxnType: 'MWALLET',
@@ -97,26 +137,17 @@ function buildJazzCashPayment(amount, selectedPayment, returnBaseUrl, uid) {
     return { clientData, secureHash, txnRef };
 }
 
-/**
- * Verify a JazzCash callback HMAC using ONLY the fields that were in the original hashInput.
- * Gateway-added response fields (pp_ResponseCode, pp_ResponseMessage, etc.) are ignored.
- * @param {object} callbackParams
- * @param {string} uid - User UID (extracted from ReturnURL query)
- * @returns {boolean}
- */
 function verifyJazzCashCallback(callbackParams, uid) {
     const integritySalt = process.env.JAZZCASH_INTEGRITY_SALT;
     const returnedHash = callbackParams.pp_SecureHash;
     if (!returnedHash) return false;
 
-    // Reconstruct using the SAME fields as the original hashInput (excluding pp_Password
-    // since the gateway doesn't return it, and using the values the gateway echoes back)
     const hashFields = {
         pp_Version: callbackParams.pp_Version || '1.1',
         pp_TxnType: callbackParams.pp_TxnType || 'MWALLET',
         pp_Language: callbackParams.pp_Language || 'EN',
         pp_MerchantID: callbackParams.pp_MerchantID,
-        pp_Password: process.env.JAZZCASH_PASSWORD, // use server-side value
+        pp_Password: process.env.JAZZCASH_PASSWORD,
         pp_TxnRefNo: callbackParams.pp_TxnRefNo,
         pp_Amount: callbackParams.pp_Amount,
         pp_TxnCurrency: callbackParams.pp_TxnCurrency || 'PKR',
@@ -126,7 +157,6 @@ function verifyJazzCashCallback(callbackParams, uid) {
         pp_ReturnURL: `${process.env.BASE_URL}/payment-callback?paymentMethod=jazzcash&uid=${uid}`,
     };
 
-    // Ensure all required fields are present
     if (!hashFields.pp_MerchantID || !hashFields.pp_TxnRefNo || !hashFields.pp_Amount) {
         return false;
     }
@@ -139,14 +169,6 @@ function verifyJazzCashCallback(callbackParams, uid) {
 
 // ─── Easypaisa ───────────────────────────────────────────────────────
 
-/**
- * Build Easypaisa payment payload.
- * @param {number} amount
- * @param {string} selectedPayment - "easypaisa"
- * @param {string} returnBaseUrl
- * @param {string} uid
- * @returns {{ clientData: object, secureHash: string, txnRef: string }}
- */
 function buildEasypaisaPayment(amount, selectedPayment, returnBaseUrl, uid) {
     const merchantId = process.env.EASYPAISA_MERCHANT_ID;
     const password = process.env.EASYPAISA_PASSWORD;
@@ -180,12 +202,6 @@ function buildEasypaisaPayment(amount, selectedPayment, returnBaseUrl, uid) {
     return { clientData, secureHash, txnRef };
 }
 
-/**
- * Verify an Easypaisa callback HMAC.
- * @param {object} callbackParams
- * @param {string} uid
- * @returns {boolean}
- */
 function verifyEasypaisaCallback(callbackParams, uid) {
     const integritySalt = process.env.EASYPAISA_INTEGRITY_SALT;
     const returnedHash = callbackParams.pp_SecureHash;
@@ -226,6 +242,29 @@ function buildPayment(amount, selectedPayment, returnBaseUrl, uid) {
     return buildJazzCashPayment(amount, selectedPayment, returnBaseUrl, uid);
 }
 
+// ─── Webhook UID Resolution ────────────────────────────────────────────
+
+async function resolveUidFromTxnRef(txnRef) {
+    const prisma = getPrisma();
+    const transaction = await prisma.transaction.findUnique({ where: { txnRef } });
+    if (transaction) {
+        return transaction.uid;
+    }
+
+    // Fallback: check Firebase RTDB
+    const indexSnapshot = await db.ref(`txnRefIndex/${txnRef}`).get();
+    if (indexSnapshot.exists()) {
+        return indexSnapshot.val();
+    }
+    return null;
+}
+
+async function storeTxnRefIndex(txnRef, uid) {
+    // Postgres already has the uid through the transaction record itself
+    // This is kept as a Firebase fallback for backward compatibility
+    await db.ref(`txnRefIndex/${txnRef}`).set(uid);
+}
+
 module.exports = {
     generateTxnRef,
     buildPayment,
@@ -236,4 +275,6 @@ module.exports = {
     persistTransaction,
     updateTransaction,
     activateSubscription,
+    resolveUidFromTxnRef,
+    storeTxnRefIndex,
 };

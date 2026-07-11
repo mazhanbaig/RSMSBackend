@@ -1,36 +1,6 @@
-const { db } = require('../config/firebase');
 const paymentService = require('./paymentService');
 
 const SUBSCRIPTION_DURATION_DAYS = 30;
-
-/**
- * Resolve a user UID from the transaction record stored at transactions/{uid}/{txnRef}.
- * Since the webhook callback doesn't include uid in its params, we look it up
- * by scanning the transactions index.
- *
- * @param {string} txnRef - Transaction reference to look up
- * @returns {Promise<string|null>} The uid if found, null otherwise
- */
-async function resolveUidFromTxnRef(txnRef) {
-    // The transactions path is transactions/{uid}/{txnRef}. We query by txnRef
-    // using Firebase's orderByChild. Since RTDB doesn't support nested wildcard
-    // queries directly, we store a reverse index: txnRefIndex/{txnRef} -> uid
-    const indexSnapshot = await db.ref(`txnRefIndex/${txnRef}`).get();
-    if (indexSnapshot.exists()) {
-        return indexSnapshot.val();
-    }
-    return null;
-}
-
-/**
- * Store a reverse index mapping txnRef → uid for webhook resolution.
- * @param {string} txnRef
- * @param {string} uid
- * @returns {Promise<void>}
- */
-async function storeTxnRefIndex(txnRef, uid) {
-    await db.ref(`txnRefIndex/${txnRef}`).set(uid);
-}
 
 /**
  * Process a payment gateway callback/webhook notification.
@@ -53,8 +23,8 @@ async function processWebhookCallback(callbackParams, gateway) {
         return { status: 'rejected', message: 'Missing txnRef in callback' };
     }
 
-    // 1. Resolve uid from the txnRefIndex
-    const uid = await resolveUidFromTxnRef(txnRef);
+    // 1. Resolve uid from the txnRefIndex (stored in paymentService)
+    const uid = await paymentService.resolveUidFromTxnRef(txnRef);
     if (!uid) {
         console.error(`[Webhook] ${gateway}: No transaction found for txnRef=${txnRef}`);
         return { status: 'rejected', message: 'Transaction not found' };
@@ -107,4 +77,4 @@ function handleDisabledCallback() {
     return { status: 'ignored', message: 'Payments disabled, callback ignored' };
 }
 
-module.exports = { processWebhookCallback, handleDisabledCallback, storeTxnRefIndex };
+module.exports = { processWebhookCallback, handleDisabledCallback };

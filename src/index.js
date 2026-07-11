@@ -9,8 +9,12 @@ const { Ratelimit } = require("@upstash/ratelimit");
 const paymentRoutes = require("./routes/payment");
 const paymentWebhookRoutes = require("./routes/paymentWebhook");
 const authRoutes = require("./routes/auth");
-const dataRoutes = require("./routes/data");
 const imageRoutes = require("./routes/images");
+const clientRoutes = require("./routes/clients");
+const ownerRoutes = require("./routes/owners");
+const propertyRoutes = require("./routes/properties");
+const eventRoutes = require("./routes/events");
+const taskRoutes = require("./routes/tasks");
 
 const app = express();
 
@@ -103,14 +107,22 @@ app.use(globalLimiter);
 
 // Stricter limiter for auth and data mutation endpoints
 app.use("/api/auth", strictLimiter);
-app.use("/api/data", strictLimiter);
+app.use("/api/clients", strictLimiter);
+app.use("/api/owners", strictLimiter);
+app.use("/api/properties", strictLimiter);
+app.use("/api/events", strictLimiter);
+app.use("/api/tasks", strictLimiter);
 
 // Payment routes get the default global limiter only (no special limiting per instructions)
 
 app.use("/api/payment", paymentRoutes);
 app.use("/api/payment", paymentWebhookRoutes);
 app.use("/api/auth", authRoutes);
-app.use("/api/data", dataRoutes);
 app.use("/api/images", imageRoutes);
+app.use("/api/clients", clientRoutes);
+app.use("/api/owners", ownerRoutes);
+app.use("/api/properties", propertyRoutes);
+app.use("/api/events", eventRoutes);
+app.use("/api/tasks", taskRoutes);
 
 module.exports = app;

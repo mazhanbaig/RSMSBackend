@@ -12,54 +12,120 @@ function handleValidationErrors(req, res, next) {
     next();
 }
 
-// ─── Data.js validators ──────────────────────────────────────────────
-const validateDataPath = (value) => {
-    if (!value || typeof value !== "string") {
-        throw new Error("Path must be a non-empty string");
-    }
-    if (value.includes("..") || value.includes("//")) {
-        throw new Error("Path traversal not allowed");
-    }
-    return true;
-};
+// ─── Entity validators ──────────────────────────────────────────────
 
-const validateGetData = [
-    query("path")
-        .exists().withMessage("Missing 'path' query parameter")
-        .isString().withMessage("Path must be a string")
-        .custom(validateDataPath),
+const validateClientData = [
+    body("name")
+        .exists().withMessage("Missing 'name'")
+        .isString().withMessage("Name must be a string")
+        .trim()
+        .notEmpty().withMessage("Name cannot be empty"),
+    body("email")
+        .optional()
+        .isEmail().withMessage("Invalid email format"),
+    body("phone")
+        .optional()
+        .isString().withMessage("Phone must be a string"),
+    body("budgetMin")
+        .optional()
+        .isFloat({ min: 0 }).withMessage("budgetMin must be a positive number"),
+    body("budgetMax")
+        .optional()
+        .isFloat({ min: 0 }).withMessage("budgetMax must be a positive number"),
+    body("preferences")
+        .optional()
+        .isString().withMessage("Preferences must be a string"),
+    body("notes")
+        .optional()
+        .isString().withMessage("Notes must be a string"),
+    body("status")
+        .optional()
+        .isString().withMessage("Status must be a string"),
     handleValidationErrors,
 ];
 
-const validatePostData = [
-    body("path")
-        .exists().withMessage("Missing 'path'")
-        .isString().withMessage("Path must be a string")
-        .custom(validateDataPath),
-    body("data")
-        .exists().withMessage("Missing 'data'"),
+const validateOwnerData = [
+    body("name")
+        .exists().withMessage("Missing 'name'")
+        .isString().withMessage("Name must be a string")
+        .trim()
+        .notEmpty().withMessage("Name cannot be empty"),
+    body("email")
+        .optional()
+        .isEmail().withMessage("Invalid email format"),
+    body("phone")
+        .optional()
+        .isString().withMessage("Phone must be a string"),
+    body("notes")
+        .optional()
+        .isString().withMessage("Notes must be a string"),
     handleValidationErrors,
 ];
 
-const validatePutData = [
-    body("path")
-        .exists().withMessage("Missing 'path'")
-        .isString().withMessage("Path must be a string")
-        .custom(validateDataPath),
-    body("data")
-        .exists().withMessage("Missing 'data'"),
+const validatePropertyData = [
+    body("title")
+        .exists().withMessage("Missing 'title'")
+        .isString().withMessage("Title must be a string")
+        .trim()
+        .notEmpty().withMessage("Title cannot be empty"),
+    body("description")
+        .optional()
+        .isString().withMessage("Description must be a string"),
+    body("price")
+        .optional()
+        .isFloat({ min: 0 }).withMessage("Price must be a positive number"),
+    body("status")
+        .optional()
+        .isString().withMessage("Status must be a string"),
+    body("images")
+        .optional()
+        .isString().withMessage("Images must be a string (JSON)"),
     handleValidationErrors,
 ];
 
-const validateDeleteData = [
-    body("path")
-        .exists().withMessage("Missing 'path'")
-        .isString().withMessage("Path must be a string")
-        .custom(validateDataPath),
+const validateEventData = [
+    body("title")
+        .exists().withMessage("Missing 'title'")
+        .isString().withMessage("Title must be a string")
+        .trim()
+        .notEmpty().withMessage("Title cannot be empty"),
+    body("description")
+        .optional()
+        .isString().withMessage("Description must be a string"),
+    body("startTime")
+        .exists().withMessage("Missing 'startTime'")
+        .isISO8601().withMessage("startTime must be a valid ISO 8601 date"),
     handleValidationErrors,
 ];
 
-// ─── Images.js validators ─────────────────────────────────────────────
+const validateTaskData = [
+    body("title")
+        .exists().withMessage("Missing 'title'")
+        .isString().withMessage("Title must be a string")
+        .trim()
+        .notEmpty().withMessage("Title cannot be empty"),
+    body("description")
+        .optional()
+        .isString().withMessage("Description must be a string"),
+    body("priority")
+        .optional()
+        .isIn(["low", "medium", "high"]).withMessage("Priority must be one of: low, medium, high"),
+    body("completed")
+        .optional()
+        .isBoolean().withMessage("Completed must be a boolean"),
+    body("dueDate")
+        .optional({ values: "null" })
+        .isISO8601().withMessage("dueDate must be a valid ISO 8601 date"),
+    body("clientId")
+        .optional()
+        .isString().withMessage("clientId must be a string"),
+    body("propertyId")
+        .optional()
+        .isString().withMessage("propertyId must be a string"),
+    handleValidationErrors,
+];
+
+// ─── Images validators ─────────────────────────────────────────────
 const ALLOWED_MIME_TYPES = [
     "image/jpeg",
     "image/png",
@@ -105,7 +171,7 @@ const validateDeleteImage = [
     handleValidationErrors,
 ];
 
-// ─── Auth.js validators ───────────────────────────────────────────────
+// ─── Auth validators ───────────────────────────────────────────────
 const validateAuthData = [
     body("uid")
         .exists().withMessage("Missing uid")
@@ -117,7 +183,7 @@ const validateAuthData = [
     handleValidationErrors,
 ];
 
-// ─── Payment.js validators ────────────────────────────────────────────
+// ─── Payment validators ────────────────────────────────────────────
 const PAYMENT_METHODS = ["jazzcash", "easypaisa"];
 
 const validatePaymentData = [
@@ -135,10 +201,11 @@ const validatePaymentData = [
 ];
 
 module.exports = {
-    validateGetData,
-    validatePostData,
-    validatePutData,
-    validateDeleteData,
+    validateClientData,
+    validateOwnerData,
+    validatePropertyData,
+    validateEventData,
+    validateTaskData,
     validateImageUpload,
     validateDeleteImage,
     validateAuthData,

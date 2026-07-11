@@ -1,6 +1,6 @@
 const ResponseObj = require("../utils/ResponseObj");
 const paymentService = require("../services/paymentService");
-const { storeTxnRefIndex } = require("../services/paymentWebhookService");
+const { storeTxnRefIndex } = require("../services/paymentService");
 
 /**
  * POST /api/payment/create-payment — Create a JazzCash/Easypaisa payment payload
