@@ -2,6 +2,7 @@
 // Maps existing Firebase RTDB structure to Neon Postgres.
 // Designed per spec: Organization → User → { Client, Owner, Property, Event, Task, Transaction }
 // All entities scoped by uid (Firebase Auth) for ownership and orgId for multi-tenancy.
+// Cascade deletes: deleting a User removes all their related records.
 
 generator client {
   provider = "prisma-client-js"
@@ -12,7 +13,6 @@ datasource db {
 }
 
 // ─── Organization ───────────────────────────────────────────────────
-// One org per user for now (solo-agent pattern). Multi-tenancy later.
 
 model Organization {
   id        String   @id @default(cuid())
@@ -23,9 +23,6 @@ model Organization {
 }
 
 // ─── User ───────────────────────────────────────────────────────────
-// Maps from users/{uid} in Firebase RTDB.
-// uid is the Firebase Auth UID — the link from authMiddleware.js.
-// orgId references Organization.id for future multi-tenancy.
 
 model User {
   id                 String       @id @default(cuid())
@@ -33,7 +30,7 @@ model User {
   name               String?
   email              String       @unique
   orgId              String
-  organization       Organization @relation(fields: [orgId], references: [id])
+  organization       Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
   subscriptionStatus String?
   subscriptionExpiry DateTime?
   photoURL           String?
@@ -52,7 +49,6 @@ model User {
 }
 
 // ─── Client ─────────────────────────────────────────────────────────
-// Maps from clients/{uid}/{id} in Firebase RTDB
 
 model Client {
   id    String @id @default(cuid())
@@ -72,7 +68,7 @@ model Client {
   updatedAt DateTime @updatedAt
 
   userId String
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   properties Property[]
   events     Event[]
@@ -84,7 +80,6 @@ model Client {
 }
 
 // ─── Owner ──────────────────────────────────────────────────────────
-// Maps from owners/{uid}/{id} in Firebase RTDB
 
 model Owner {
   id    String @id @default(cuid())
@@ -102,7 +97,7 @@ model Owner {
   properties Property[]
 
   userId String
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([uid])
   @@index([orgId])
@@ -110,7 +105,6 @@ model Owner {
 }
 
 // ─── Property ───────────────────────────────────────────────────────
-// Maps from properties/{uid}/{id} in Firebase RTDB
 
 model Property {
   id    String @id @default(cuid())
@@ -128,12 +122,12 @@ model Property {
   updatedAt DateTime @updatedAt
 
   ownerId  String?
-  owner    Owner?  @relation(fields: [ownerId], references: [id])
+  owner    Owner?  @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   clientId String?
-  client   Client? @relation(fields: [clientId], references: [id])
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   userId String
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   events Event[]
   tasks  Task[]
@@ -146,7 +140,6 @@ model Property {
 }
 
 // ─── Event ──────────────────────────────────────────────────────────
-// Maps from events/{uid}/{id} in Firebase RTDB
 
 model Event {
   id    String @id @default(cuid())
@@ -160,12 +153,12 @@ model Event {
   updatedAt   DateTime @updatedAt
 
   clientId   String?
-  client     Client?   @relation(fields: [clientId], references: [id])
+  client     Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
   propertyId String?
-  property   Property? @relation(fields: [propertyId], references: [id])
+  property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
 
   userId String
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([uid])
   @@index([orgId])
@@ -173,7 +166,6 @@ model Event {
 }
 
 // ─── Task ───────────────────────────────────────────────────────────
-// Maps from tasks/{uid}/{id} in Firebase RTDB
 
 model Task {
   id    String @id @default(cuid())
@@ -189,12 +181,12 @@ model Task {
   updatedAt   DateTime  @updatedAt
 
   clientId   String?
-  client     Client?   @relation(fields: [clientId], references: [id])
+  client     Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
   propertyId String?
-  property   Property? @relation(fields: [propertyId], references: [id])
+  property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
 
   userId String
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([uid])
   @@index([orgId])
@@ -203,7 +195,6 @@ model Task {
 }
 
 // ─── Transaction ────────────────────────────────────────────────────
-// Maps from transactions/{uid}/{txnRef} in Firebase RTDB
 
 model Transaction {
   id              String    @id @default(cuid())
@@ -221,7 +212,7 @@ model Transaction {
   settledAt       DateTime?
 
   userId String
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([uid])
   @@index([orgId])

@@ -61,4 +61,42 @@ async function revokeUserTokens(uid) {
     await auth.revokeRefreshTokens(uid);
 }
 
-module.exports = { saveUser, revokeUserTokens };
+/**
+ * Delete a user and ALL their data from Postgres and Firebase.
+ * Postgres cascade deletes handle related records (clients, owners, etc.).
+ * Firebase RTDB cleanup is done explicitly.
+ * @param {string} uid - Firebase Auth UID
+ * @returns {Promise<void>}
+ */
+async function deleteUser(uid) {
+    const prisma = getPrisma();
+
+    // 1. Delete from Postgres — cascade deletes handle all entity records
+    await prisma.user.deleteMany({ where: { uid } });
+    await prisma.organization.deleteMany({ where: { id: uid } });
+
+    // 2. Clean up Firebase RTDB
+    const paths = [
+        `users/${uid}`,
+        `clients/${uid}`,
+        `owners/${uid}`,
+        `properties/${uid}`,
+        `events/${uid}`,
+        `tasks/${uid}`,
+        `transactions/${uid}`,
+    ];
+    const updates = {};
+    for (const p of paths) {
+        updates[p] = null;
+    }
+    await db.ref().update(updates);
+
+    // 3. Revoke Firebase Auth tokens
+    try {
+        await auth.revokeRefreshTokens(uid);
+    } catch (err) {
+        console.warn(`Could not revoke tokens for ${uid}: ${err.message}`);
+    }
+}
+
+module.exports = { saveUser, revokeUserTokens, deleteUser };
