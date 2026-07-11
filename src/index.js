@@ -7,6 +7,7 @@ const { Redis } = require("@upstash/redis");
 const { Ratelimit } = require("@upstash/ratelimit");
 
 const paymentRoutes = require("./routes/payment");
+const paymentWebhookRoutes = require("./routes/paymentWebhook");
 const authRoutes = require("./routes/auth");
 const dataRoutes = require("./routes/data");
 const imageRoutes = require("./routes/images");
@@ -107,6 +108,7 @@ app.use("/api/data", strictLimiter);
 // Payment routes get the default global limiter only (no special limiting per instructions)
 
 app.use("/api/payment", paymentRoutes);
+app.use("/api/payment", paymentWebhookRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/data", dataRoutes);
 app.use("/api/images", imageRoutes);
