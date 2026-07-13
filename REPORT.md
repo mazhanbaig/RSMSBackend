@@ -944,9 +944,90 @@ This claim in the prior report is **verified accurate**.
 
 ---
 
-## Temporary verification scripts created (will be removed before final commit)
-Scripts used for this verification task (not part of the application):
-- `scripts/rowcounts.js`
-- `scripts/spotcheck.js`
-- `scripts/unknownUserTest.js`
-- `scripts/investigate.js`
+---
+
+### BACKFILL FIX (July 13, 2026) — IDs preserved, names fixed, re-run successful
+
+**Bug found during verification:** Three mappers in `scripts/backfillPostgres.js` discarded the original Firebase record IDs and used auto-generated Prisma cuids instead. MapClient also looked for `record.name` but Firebase stores `firstName` + `lastName` separately.
+
+**Fix applied to all 5 entity mappers:**
+- `mapClient`: Added `id: recordId`, builds name from `firstName + ' ' + lastName`
+- `mapOwner`: Added `id: recordId`
+- `mapProperty`: Added `id: recordId`, builds address from `location + ' ' + city`
+- `mapEvent`: Added `id: recordId`
+- `mapTask`: Added `id: recordId`
+
+**Re-run verification (fresh output):**
+```
+=== Backfill: Firebase RTDB → Postgres (Neon) ===
+Started: 2026-07-13T08:01:18.069Z
+
+  User           : 9 read → 9 written, 0 failed
+  Client         : 9 read → 9 written, 0 failed
+  Owner          : 6 read → 6 written, 0 failed
+  Property       : 5 read → 5 written, 0 failed
+  Event          : 4 read → 4 written, 0 failed
+  Task           : 7 read → 7 written, 0 failed
+  Transaction    : 0 read → 0 written, 0 failed
+  TOTAL          : 40 read → 40 written, 0 failed
+
+Finished: 2026-07-13T08:01:40.873Z (~22 seconds)
+```
+
+**Post-fix verification results:**
+```
+Clients named "Unnamed Client": 0
+Clients with real names: 9
+Sample real names: ['G B', 'Ameer Aftab Baig', 'Muhammad Azhan Baig']
+
+Sample Client ID: 3bca7bed-84da-4e68-890c-4a15b484f504 (Firebase UUID preserved)
+Sample Property ID: 9988c809-068e-408b-af9f-1bc79258ded9 (Firebase UUID preserved)
+
+Properties with ownerId set: 1 of 5 (Firebase flat fields matched)
+Events with clientId set: 0 of 4 (Firebase had no flat clientId/propertyId fields)
+Tasks with clientId set: 0 of 7 (Firebase had no flat clientId/propertyId fields)
+
+49/49 Jest tests: ALL PASS (unchanged — services not affected by backfill data)
+```
+
+**What was fixed:**
+| Before | After |
+|--------|-------|
+| All 9 clients named "Unnamed Client" | All 9 clients have real names |
+| IDs auto-generated (no match to Firebase) | IDs preserved from Firebase (matching UUIDs) |
+| 1/5 properties with ownerId | Same (Firebase data limitation, not backfill bug) |
+
+**What was NOT fixed (data quality, not backfill bug):**
+- 2 Firebase client records for unknown uids (skipped — no Postgres User row) — 🟡 2 records not imported
+- 2 Firebase user UIDs referenced in property records have no Postgres User — 🟡 cannot be imported
+- 0/4 events and 0/7 tasks have cross-references — Firebase didn't store flat `clientId`/`propertyId` fields on these records
+
+**Overall verdict:** Backfill bug is FIXED. High severity issues resolved.
+
+---
+
+The verification scripts (`scripts/rowcounts.js`, `scripts/spotcheck.js`, `scripts/unknownUserTest.js`, `scripts/investigate.js`, `scripts/diag.js`, `scripts/verifyBackfill.js`) were temporary and have been deleted.
+
+All working directory is clean except for the one modified file: `scripts/backfillPostgres.js`.
+
+---
+
+## Updated Final Status (July 13, 2026)
+
+### ✅ CONFIRMED WORKING
+- **Backfill bug fixed:** IDs preserved from Firebase, client names correct (0 unnamed), 40/40 records written, 0 failures
+- **Auth → Postgres resolution:** Unknown users return null gracefully
+- **Ownership isolation:** 49/49 Jest tests pass across 6 suites
+- **Cascade deletes:** Implemented + tested (4 authService tests)
+- **PAYMENTS_ENABLED gate:** Intact in both payment + webhook controllers
+- **Sentry monitoring:** All 8 controllers + global handler, 0 npm audit issues
+- **Rollback path:** `/api/data` handler recoverable via `git show 97e7ab3^`
+
+### ❌ REMAINING ISSUES
+- 2 client records + 2 property records exist in Firebase but have no Postgres User → skipped during backfill
+- No cross-entity references in Firebase Events/Tasks (`clientId`, `propertyId` flat fields never existed)
+
+### GIT STATE
+- `dev`: clean, ready to commit with `scripts/backfillPostgres.js` fix
+- `main`: ahead of dev by 1 commit (REPORT.md update from earlier task)
+- **No merge to main in this task** ✅
