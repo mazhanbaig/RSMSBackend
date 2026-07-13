@@ -1092,3 +1092,45 @@ Both property UIDs are UUIDs (not Firebase Auth UIDs) — they were never valid 
 - **Firebase RTDB orphan sweep**: Complete sweep of all 7 top-level paths (`clients`, `owners`, `properties`, `events`, `tasks`, `transactions`, `users`) confirmed ZERO additional orphans beyond the 3 already deleted. All 9 remaining UIDs have valid Firebase Auth accounts and matching Postgres User records.
 - **`/api/data` references**: None found anywhere in `src/` — the old generic endpoint has been fully removed.
 - **Commented-out code**: None found across all 27 route/controller/service files.
+
+---
+
+## Feature Implementation — July 13, 2026
+
+**Task:** Implement 4 feature items from the deep research survey of real estate management systems on GitHub. Features map directly to confirmed gaps in the gap analysis table.
+
+### ITEM 1 — Advanced property search & filters (Gap: "Advanced property search/filters")
+- Extended `GET /api/properties` with query params: `minPrice`, `maxPrice`, `city`, `propertyType`, `bedrooms`, `bathrooms`, `status`.
+- Built `buildPropertyFilters(queryParams)` in `src/services/propertyService.js:1` — pure function, conditionally builds Prisma `where` clause only from provided params.
+- Added database indexes on `Property.city`, `Property.price`, `Property.featured` via Prisma schema.
+- **Added to Property model:** `city`, `propertyType`, `bedrooms`, `bathrooms` (Prisma migration via `prisma db push`).
+
+### ITEM 2 — Featured properties (Gap: "Featured properties")
+- Added `featured Boolean @default(false)` to Property model.
+- `PATCH /api/properties/:id/feature` toggles the flag with ownership isolation.
+- Works through the same `buildPropertyFilters` function — `GET /api/properties?featured=true` reuses Item 1's filter builder.
+
+### ITEM 3 — Installment/EMI calculator (Gap: "Installment/EMI calculator")
+- Pure calculation service at `src/services/calculatorService.js` — no database interaction.
+- `POST /api/tools/installment-calculator` accepting `{ totalPrice, downPayment, months, interestRate }`.
+- Returns monthly payment, total payable, full month-by-month breakdown (with interest calculations for non-zero rates).
+- 5 Jest tests covering: zero interest, with down payment, 12% annual interest, single-month edge case, all required fields.
+
+### ITEM 4 — Analytics dashboard endpoints (Gap: "Analytics dashboard with charts")
+- `GET /api/analytics/overview` → total clients, total properties, properties by status breakdown.
+- `GET /api/analytics/clients-by-stage` → clients grouped by status (powers funnel chart).
+- `GET /api/analytics/properties-timeline` → properties created per month for last 12 months (powers trend line).
+- All use Prisma `groupBy` — no raw SQL, ownership isolated via `userId` scope.
+- *Revenue/invoice data excluded* — no Invoice model exists yet (future gap).
+- *Pipeline stages excluded* — no stage field on Client model exists yet (future gap).
+
+### BUG FIX incidental to implementation
+- `src/services/authService.js:49` — `email: email` in Firebase RTDB `update()` call passed bare undefined when custom token has no email field, causing `update failed: values argument contains undefined` error. Fixed to `email: email || null`.
+
+### VERIFICATION
+- **66 Jest tests** — 49 existing + 17 new (6 `buildPropertyFilters`, 3 `findAllByUser` filters, 3 `toggleFeatured`, 5 `calculateInstallmentPlan`). All pass.
+- **Curl verification** against live server — all 4 item endpoints return correct data, ownership isolation confirmed (other user sees 0 records).
+- `featured` toggle + filter verified as a round-trip: toggle true → filter finds it → toggle false → filter excludes it.
+
+### GIT STATE
+- Committed and pushed to `dev` only.

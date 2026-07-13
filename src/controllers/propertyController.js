@@ -4,7 +4,7 @@ const propertyService = require('../services/propertyService');
 
 async function list(req, res) {
     try {
-        const result = await propertyService.findAllByUser(req.user.uid);
+        const result = await propertyService.findAllByUser(req.user.uid, req.query);
         if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
         res.status(200).json(ResponseObj(true, 'Properties fetched', result.data));
     } catch (err) {
@@ -62,4 +62,16 @@ async function remove(req, res) {
     }
 }
 
-module.exports = { list, getOne, create, update, remove };
+async function featureToggle(req, res) {
+    try {
+        const result = await propertyService.toggleFeatured(req.user.uid, req.params.id);
+        if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
+        res.status(200).json(ResponseObj(true, 'Property featured status toggled', result.data));
+    } catch (err) {
+        Sentry.captureException(err);
+        console.error('propertyController.featureToggle:', err);
+        res.status(500).json(ResponseObj(false, 'Failed to toggle featured', null, err.message));
+    }
+}
+
+module.exports = { list, getOne, create, update, remove, featureToggle };

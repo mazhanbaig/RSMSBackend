@@ -45,8 +45,8 @@ async function saveUser(uid, name, email, picture) {
     await db.ref("users/" + uid).update({
         uid,
         name: displayName,
-        email,
-        photoURL: picture,
+        email: email || null,
+        photoURL: picture || null,
         provider: "google",
         createdAt: new Date().toISOString(),
     });

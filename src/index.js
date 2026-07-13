@@ -31,6 +31,8 @@ const ownerRoutes = require("./routes/owners");
 const propertyRoutes = require("./routes/properties");
 const eventRoutes = require("./routes/events");
 const taskRoutes = require("./routes/tasks");
+const toolsRoutes = require("./routes/tools");
+const analyticsRoutes = require("./routes/analytics");
 
 const app = express();
 
@@ -41,6 +43,7 @@ app.use(cors({
     origin: [
         'http://localhost:3000',
         'http://localhost:3001',
+        'http://localhost:3002',
         'https://zstate.vercel.app'
     ],
     credentials: true
@@ -140,6 +143,8 @@ app.use("/api/owners", ownerRoutes);
 app.use("/api/properties", propertyRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/tasks", taskRoutes);
+app.use("/api/tools", toolsRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // ─── Sentry Error Handler (must be last) ─────────────────────────────
 // Captures unhandled errors and sends them to Sentry when DSN is configured.
