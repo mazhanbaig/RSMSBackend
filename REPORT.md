@@ -1031,3 +1031,64 @@ All working directory is clean except for the one modified file: `scripts/backfi
 - `dev`: clean, ready to commit with `scripts/backfillPostgres.js` fix
 - `main`: ahead of dev by 1 commit (REPORT.md update from earlier task)
 - **No merge to main in this task** ✅
+
+---
+
+## July 13, 2026 — Orphaned Record Investigation
+
+**Task:** Sync dev with main, then investigate 2 orphaned client + 2 orphaned property records.
+
+### 1. Git Sync
+Executed `git merge origin/main --no-ff` into dev. Result: `Already up to date` — main (`5b07b3f`) is already an ancestor of dev (`67894d1`). Pushed: `Everything up-to-date`.
+
+### 2. Orphaned Record Investigation
+
+#### Client orphans (1 UID: `oUvzz6z8YmOFxj3v4ONOb6IRXE32`)
+- **2 client records** for **"Zyan Baig"** (email: mzyanbaig123@gmail.com, phone: "66")
+- Created: **2026-03-12** (both records, 1 second apart — looks like a duplicate)
+- Status: `active`, budget: all `"F"` (test/placeholder values)
+- **No Firebase Auth user** exists — UID not found in auth.getUser()
+- **No Firebase RTDB users/ record** either
+- Likely: a user who was deleted from Firebase Auth, or test data entered without a real auth account
+
+#### Property orphans (2 UIDs — both clearly NOT real data)
+
+| UID | Record | Verdict |
+|-----|--------|---------|
+| `cacd57d1-f4da-49fe-ae3a-6f77335b5f91` | Single key `propertyStatus` with no fields | **Corrupted / artifact** — not a real property |
+| `df03abb3-8ea1-442f-8c7b-ee360eb09db8` | Same — only `propertyStatus` key | **Corrupted / artifact** — not a real property |
+
+Both property UIDs are UUIDs (not Firebase Auth UIDs) — they were never valid user identifiers. The data structure is `properties/{uuid}/propertyStatus` with no actual property fields. These are likely Firebase write artifacts or malformed entries, not genuine property listings.
+
+**Recommendation:** Abandon all 4. The 2 property records are clearly corrupted artifacts. The 2 Zyan Baig client records lack any auth account (deleted or never existed) and have test-looking budget values ("F"). If the email mzyanbaig123@gmail.com is meaningful, the data would need to be re-entered from scratch under a real user account.
+
+---
+
+## Cleanup Summary — July 13, 2026
+
+### DELETED (confirmed, zero-risk)
+- **Firebase RTDB** — `clients/oUvzz6z8YmOFxj3v4ONOb6IRXE32` (2 Zyan Baig test client records — project owner confirmed)
+- **Firebase RTDB** — `properties/cacd57d1-f4da-49fe-ae3a-6f77335b5f91` (corrupted artifact with single `propertyStatus` key)
+- **Firebase RTDB** — `properties/df03abb3-8ea1-442f-8c7b-ee360eb09db8` (same corrupted artifact)
+- **Root level** — `test_logout.js` (4179 bytes, last modified July 11, 2026 — contained hardcoded Firebase API key, leftover test script from earlier security incident)
+
+### FOUND AND FLAGGED — NEEDS HUMAN DECISION
+
+**Postgres data that may be test/placeholder:**
+1. **Property `zz`** — title is literally "zz", price 1111, status "available". Looks like gibberish test data.
+2. **6 Task records** — IDs are Firebase field names (`completed`, `createdAt`, `description`, `dueDate`, `priority`, `title`), all titled "Unnamed Task" (backfill fallback from null data). These are almost certainly backfill artifacts from malformed Firebase data, not real tasks. They belong to real user UIDs.
+3. **6 Owner records** — all titled "Unnamed Owner" (backfill fallback from null `name` in Firebase). These have real emails and phones, so the name data was simply missing in Firebase. Records are under 2 real user UIDs.
+4. **3 Client records for mzyanbaig123@gmail.com** — under real user UID `xEfZ2r3tEZdBWLehXhELeZZTZdD2`. Names: "Gyg Baig" and "Zyan Baig" (duplicate). These belong to a real auth user so may be legitimate.
+
+**Codebase issues:**
+5. **`src/middlewares/subscription.middleware.js`** — `verifySubscription` middleware is fully implemented (47 lines) but NEVER imported by any route file. Dead code. Can be safely removed or wired in.
+6. **`src/controllers/paymentController.js:11`** — destructured variable `email` from `req.body` is never used (leftover from copy-paste). Low-risk cleanup, but technically dead code.
+7. **`src/config/database.js`** — exports both `getPrisma` and `resolveUserId`. The `resolveUserId` function is used by entity services. `getPrisma` is used by all services. No issue here.
+8. **`.env` file** — is tracked in git (.env is NOT in .gitignore). Contains live credentials (Firebase private key, Cloudinary keys, Neon DB URL). See follow-up note below.
+
+### FOLLOW-UP NOTES
+- **.env in git**: The `.env` file with live production credentials is being tracked by git. Standard practice is to `.gitignore` `.env` and use `.env.example` as a template. The live credentials in `.env` would be exposed in the git history to anyone with repo access. This is a security concern worth addressing separately.
+- **npm dependencies**: All appear needed. `pg`, `@prisma/adapter-neon`, `@prisma/adapter-pg`, `prisma` are used for Postgres. `firebase-admin`, `express`, `helmet`, `cors`, etc. are all in use. No orphaned deps found.
+- **Firebase RTDB orphan sweep**: Complete sweep of all 7 top-level paths (`clients`, `owners`, `properties`, `events`, `tasks`, `transactions`, `users`) confirmed ZERO additional orphans beyond the 3 already deleted. All 9 remaining UIDs have valid Firebase Auth accounts and matching Postgres User records.
+- **`/api/data` references**: None found anywhere in `src/` — the old generic endpoint has been fully removed.
+- **Commented-out code**: None found across all 27 route/controller/service files.
