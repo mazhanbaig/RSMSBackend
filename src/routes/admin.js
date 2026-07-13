@@ -17,6 +17,9 @@ router.get('/security/overview', adminController.securityOverview);
 router.get('/security/audit-log', adminController.auditLog);
 router.get('/security/vulnerabilities', adminController.vulnerabilities);
 
+// MFA management
+router.get('/users/:uid/mfa-status', adminController.mfaStatus);
+
 // 3.3 — User management
 router.post('/users/:uid/suspend', adminController.suspendUser);
 router.post('/users/:uid/unsuspend', adminController.unsuspendUser);

@@ -1188,7 +1188,24 @@ Cleared out all confirmed test/dead items from the deep evaluation (see Cleanup 
 | `GET /api/admin/security/vulnerabilities` | Server-side npm audit summary |
 | `POST /api/admin/users/:uid/suspend` | Suspend user (requires `reason` in body) |
 | `POST /api/admin/users/:uid/unsuspend` | Lift suspension |
+| `GET /api/admin/users/:uid/mfa-status` | Check a user's MFA enrollment (enrolled factors, phone numbers) |
 | `GET /api/admin/system/health` | DB connection, Upstash/Sentry status, PAYMENTS_ENABLED, git commit |
+
+### MFA Verification Logic (requireSuperAdmin middleware)
+
+The middleware performs a **two-layer MFA check** using the Firebase Admin SDK:
+
+1. **`auth.getUser(firebaseUid)`** — queries Firebase Auth server-side for the user's actual MFA enrollment record (`mfaInfo` array). This is authoritative, not reliant on token claims alone.
+2. **Token claim check** — verifies the current session's ID token contains `firebase.multi_factor` entries.
+
+Three outcomes:
+| State | Response |
+|---|---|
+| No MFA factors enrolled at all | 403 with instructions to enroll MFA |
+| MFA enrolled but not used in this session | 403 with instructions to sign out and sign in again (will trigger MFA prompt) |
+| MFA enrolled AND used in current session | **Allow** — passes through to admin routes |
+
+This means MFA works immediately when: (a) MFA is enabled in Firebase Console, (b) the admin user has enrolled a phone number, and (c) they sign in fresh so the ID token includes the `multi_factor` claim.
 
 ### PART 4 — Tests
 - **21 new Jest tests** in `adminService.test.js` covering: checkSuperAdmin (3), checkUserSuspended (3), logAdminAction (1), suspendUser (3), unsuspendUser (2), getSystemHealth (1), getNpmAuditSummary (2), listUsers (1), getUserDetail (2), listOrganizations (1), getSecurityOverview (1), getAuditLog (1)
@@ -1206,4 +1223,16 @@ Cleared out all confirmed test/dead items from the deep evaluation (see Cleanup 
 6. NEVER do this for any other account without explicit intent
 ```
 
-**MFA prerequisite:** Firebase MFA must be enabled in the Firebase Console (Authentication > Settings > Multi-factor authentication). The code checks for the `multi_factor` claim — it will block admin access until MFA is configured. Until then, the routes return a clear message directing you to complete MFA setup.
+**MFA setup prerequisite (one-time Firebase Console config):**
+```
+1. Go to https://console.firebase.google.com/project/rsms-5d122/authentication/settings
+2. Under "Multi-factor authentication", click Enable
+3. Select "Phone" as the factor type
+4. Configure SMS templates as needed
+5. Save
+```
+After enabling MFA in the project, the admin user needs to enroll a phone number:
+- Sign out of the app, sign in again — the Firebase Auth SDK should prompt for MFA enrollment
+- Or enroll directly at Firebase Console > Authentication > Users > select your user > Enroll MFA factor
+
+The middleware will verify enrollment via `auth.getUser()` and reject until MFA is properly set up.

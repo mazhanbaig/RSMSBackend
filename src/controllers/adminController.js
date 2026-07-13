@@ -127,4 +127,32 @@ async function systemHealth(req, res) {
     }
 }
 
-module.exports = { listUsers, getUserDetail, listOrganizations, securityOverview, auditLog, vulnerabilities, suspendUser, unsuspendUser, systemHealth };
+async function mfaStatus(req, res) {
+    try {
+        const { auth } = require('../config/firebase');
+        let firebaseUser;
+        try {
+            firebaseUser = await auth.getUser(req.params.uid);
+        } catch (fbErr) {
+            return res.status(404).json(ResponseObj(false, 'Firebase user not found', null, fbErr.message));
+        }
+        const enrolledFactors = (firebaseUser.mfaInfo || []).map(f => ({
+            factorId: f.uid,
+            phoneNumber: f.phoneNumber,
+            displayName: f.displayName,
+            enrolledAt: f.enrollmentTime,
+        }));
+        await adminService.logAdminAction(req.adminUserId, 'viewed_mfa_status', 'User', req.params.uid, { mfaEnrolled: enrolledFactors.length > 0 }, req.ip);
+        res.status(200).json(ResponseObj(true, 'MFA status fetched', {
+            uid: req.params.uid,
+            mfaEnrolled: enrolledFactors.length > 0,
+            enrolledFactors,
+        }));
+    } catch (err) {
+        Sentry.captureException(err);
+        console.error('adminController.mfaStatus:', err);
+        res.status(500).json(ResponseObj(false, 'Failed to fetch MFA status', null, err.message));
+    }
+}
+
+module.exports = { listUsers, getUserDetail, listOrganizations, securityOverview, auditLog, vulnerabilities, suspendUser, unsuspendUser, systemHealth, mfaStatus };
