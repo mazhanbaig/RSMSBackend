@@ -4,7 +4,7 @@ const clientService = require('../services/clientService');
 
 async function list(req, res) {
     try {
-        const result = await clientService.findAllByUser(req.user.uid);
+        const result = await clientService.findAllByUser(req.user.uid, req.query);
         if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
         res.status(200).json(ResponseObj(true, 'Clients fetched', result.data));
     } catch (err) {
@@ -50,6 +50,18 @@ async function update(req, res) {
     }
 }
 
+async function updatePipelineStage(req, res) {
+    try {
+        const result = await clientService.updatePipelineStage(req.user.uid, req.params.id, req.body.pipelineStage);
+        if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
+        res.status(200).json(ResponseObj(true, 'Pipeline stage updated', result.data));
+    } catch (err) {
+        Sentry.captureException(err);
+        console.error('clientController.updatePipelineStage:', err);
+        res.status(500).json(ResponseObj(false, 'Failed to update pipeline stage', null, err.message));
+    }
+}
+
 async function remove(req, res) {
     try {
         const result = await clientService.remove(req.user.uid, req.params.id);
@@ -62,4 +74,4 @@ async function remove(req, res) {
     }
 }
 
-module.exports = { list, getOne, create, update, remove };
+module.exports = { list, getOne, create, update, remove, updatePipelineStage };

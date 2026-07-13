@@ -1236,3 +1236,47 @@ After enabling MFA in the project, the admin user needs to enroll a phone number
 - Or enroll directly at Firebase Console > Authentication > Users > select your user > Enroll MFA factor
 
 The middleware will verify enrollment via `auth.getUser()` and reject until MFA is properly set up.
+
+---
+
+## Feature Implementation: Lead Pipeline, Invoices, Approvals
+
+**Started:** July 13, 2026
+**Branch:** `dev`
+**Scope:** 3 features from deep-research gap analysis
+
+### Changes Made
+
+**Pipeline Stages (Client)**
+- Added `pipelineStage String?` to `Client` model
+- `clientService.findAllByUser(uid, filters)` accepts optional query params for filtering
+- `PATCH /api/clients/:id/pipeline` — ownership-isolated stage update
+- `GET /api/clients?pipelineStage=lead` works through same filter function
+- `analyticsService.getClientsByStage` now groups by `pipelineStage` instead of `status`
+
+**Invoice/Commission Tracking**
+- New `Invoice` model: invoiceNo (unique, auto-generated), amount, commission, tax, total (computed), status (draft/sent/paid/cancelled), dueDate, paidAt
+- `invoiceService`: CRUD with ownership isolation, auto-calculates total
+- Routes: `GET /api/invoices`, `GET /:id`, `POST /`, `PUT /:id`, `DELETE /:id`
+- Validator: `validateInvoiceData` in middleware
+
+**Approvals Workflow**
+- New `ApprovalRequest` model: title, targetType + targetId, action, payload (JSON), status, requester, reviewer
+- `approvalService`: CRUD + `findPendingForReview` (all pending, unscoped) + `review` (assigns reviewer, prevents double-assignment)
+- Routes: `GET /api/approvals`, `GET /pending-reviews`, `GET /:id`, `POST /`, `PATCH /:id/review`, `DELETE /:id`
+
+### Verification — Test Results
+
+```
+Test Suites: 11 passed, 11 total
+Tests:       115 passed, 115 total
+```
+
+115 tests across 11 suites (was 91 tests in 9 suites). Added:
+- `invoiceService.test.js` — 12 tests covering CRUD + ownership isolation + filter
+- `approvalService.test.js` — 14 tests covering CRUD + review + ownership isolation
+
+### Migration Status
+- Manual migration SQL created at `prisma/migrations/20260713120000_add_pipeline_invoice_approval/migration.sql`
+- **Not yet applied to database** — Neon DB was unreachable during this session
+- Run `npx prisma migrate dev` when DB is reachable to apply

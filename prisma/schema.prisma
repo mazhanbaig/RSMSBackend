@@ -48,8 +48,11 @@ model User {
   @@index([orgId])
   @@index([uid])
 
-  adminAuditLogs   AdminAuditLog[]
-  userSuspensions  UserSuspension[]
+  adminAuditLogs     AdminAuditLog[]
+  userSuspensions    UserSuspension[]
+  approvalRequests   ApprovalRequest[] @relation("requester")
+  reviewedApprovals  ApprovalRequest[] @relation("reviewer")
+  invoices           Invoice[]
 }
 
 // ─── Admin Audit Log ────────────────────────────────────────────────
@@ -97,8 +100,9 @@ model Client {
   budgetMin   Decimal? @db.Decimal(12, 2)
   budgetMax   Decimal? @db.Decimal(12, 2)
   preferences String?
-  notes       String?
-  status      String?
+  notes         String?
+  status        String?
+  pipelineStage String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -106,9 +110,12 @@ model Client {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  properties Property[]
-  events     Event[]
-  tasks      Task[]
+  properties     Property[]
+  events         Event[]
+  tasks          Task[]
+  invoices       Invoice[]
+  approvalSender ApprovalRequest[]   @relation("sender")
+  approvalTarget ApprovalRequest[]   @relation("target")
 
   @@index([uid])
   @@index([orgId])
@@ -170,8 +177,9 @@ model Property {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  events Event[]
-  tasks  Task[]
+  events   Event[]
+  tasks    Task[]
+  invoices Invoice[]
 
   @@index([uid])
   @@index([orgId])
@@ -262,5 +270,69 @@ model Transaction {
   @@index([orgId])
   @@index([userId])
   @@index([txnRef])
+  @@index([status])
+}
+
+// ─── Invoice ─────────────────────────────────────────────────────────
+
+model Invoice {
+  id        String   @id @default(cuid())
+  invoiceNo String   @unique
+  title     String
+  amount    Decimal  @db.Decimal(12, 2)
+  commission Decimal @db.Decimal(12, 2)
+  tax       Decimal  @db.Decimal(12, 2) @default(0)
+  total     Decimal  @db.Decimal(12, 2)
+  status    String   @default("draft")
+  dueDate   DateTime?
+  paidAt    DateTime?
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId String?
+  client   Client?  @relation(fields: [clientId], references: [id])
+  propertyId String?
+  property Property? @relation(fields: [propertyId], references: [id])
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([propertyId])
+  @@index([status])
+}
+
+// ─── Approval Request ────────────────────────────────────────────────
+
+model ApprovalRequest {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  targetType  String
+  targetId    String?
+  action      String
+  payload     Json?
+  status      String   @default("pending")
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  requesterId String
+  requester   User   @relation("requester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  reviewerId String?
+  reviewer   User?   @relation("reviewer", fields: [reviewerId], references: [id])
+
+  clientSender  Client? @relation("sender",   fields: [senderClientId], references: [id])
+  senderClientId String?
+
+  clientTarget  Client? @relation("target",   fields: [targetClientId], references: [id])
+  targetClientId String?
+
+  @@index([requesterId])
+  @@index([reviewerId])
   @@index([status])
 }

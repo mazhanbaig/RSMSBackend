@@ -33,6 +33,8 @@ const eventRoutes = require("./routes/events");
 const taskRoutes = require("./routes/tasks");
 const toolsRoutes = require("./routes/tools");
 const analyticsRoutes = require("./routes/analytics");
+const invoiceRoutes = require("./routes/invoices");
+const approvalRoutes = require("./routes/approvals");
 const adminRoutes = require("./routes/admin");
 
 const app = express();
@@ -169,6 +171,8 @@ app.use("/api/events", eventRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/tools", toolsRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/invoices", strictLimiter, invoiceRoutes);
+app.use("/api/approvals", strictLimiter, approvalRoutes);
 app.use("/api/admin", adminLimiter, adminRoutes);
 
 // ─── Sentry Error Handler (must be last) ─────────────────────────────

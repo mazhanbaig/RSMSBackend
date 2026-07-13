@@ -36,15 +36,15 @@ async function getClientsByStage(uid) {
     if (!userId) return { error: 'User not found', status: 404 };
 
     const groups = await prisma.client.groupBy({
-        by: ['status'],
+        by: ['pipelineStage'],
         where: { userId },
-        _count: { status: true },
+        _count: { pipelineStage: true },
     });
 
     const breakdown = {};
     for (const row of groups) {
-        const key = row.status || 'unspecified';
-        breakdown[key] = row._count.status;
+        const key = row.pipelineStage || 'unspecified';
+        breakdown[key] = row._count.pipelineStage;
     }
 
     return { data: breakdown };
