@@ -1153,3 +1153,57 @@ Cleared out all confirmed test/dead items from the deep evaluation (see Cleanup 
 - `.env` was already in `.gitignore` and not tracked by git — the earlier note was incorrect, no action needed.
 - **66/66 Jest tests pass** (unchanged from prior run — no test coverage was lost).
 - Postgres counts after cleanup: 6 properties, 1 task, 0 owners, 9 clients, 4 events.
+
+---
+
+## Super-Admin System — July 13, 2026
+
+### SECURITY RULES VERIFIED
+1. **No API endpoint can grant super-admin status** — `isSuperAdmin` can ONLY be set via direct DB write (Prisma Studio or SQL). Confirmed no endpoint like `POST /api/admin/grant-admin` exists.
+2. **Every admin action logged** — `AdminAuditLog` table captures every request to `/api/admin/*` (success or failure), plus unauthorized access attempts and MFA failures.
+3. **isSuperAdmin never leaks** — Deliberate leak-check tests (`adminLeakCheck.test.js`) verify the field does not appear in client/property/owner service responses for super-admin users. 4 dedicated tests confirm this.
+4. **Routes fully namespaced** — All admin routes under `/api/admin/*`, never mixed with existing route files.
+
+### PART 1 — Data Model
+- Added `isSuperAdmin Boolean @default(false)` to User model
+- Added `AdminAuditLog` model (adminUserId, action, targetType, targetId, details Json, ipAddress, createdAt)
+- Added `UserSuspension` model (userId, reason, suspendedBy, suspendedAt, liftedAt, liftedBy)
+- Applied via `npx prisma db push`
+
+### PART 2 — Auth Hardening
+- **`src/middlewares/requireSuperAdmin.js`** — checks `isSuperAdmin === true` in Postgres, rejects with 403 if not. Failed attempts logged to `AdminAuditLog` as `"unauthorized_admin_access_attempt"`.
+- **MFA check** — checks `req.user.firebase?.multi_factor` claim. If absent, rejects with clear "complete MFA setup" message and logs the attempt. The check code is ready even if MFA isn't yet enabled on the Firebase project.
+- **Rate limiting** — `/api/admin/*` routes get a stricter tier: 10 requests/15min (vs 30 for "strict" and 100 for global).
+- **Suspension enforcement** — `authMiddleware.js` now calls `checkUserSuspended()` after token verification. Suspended users get "Account suspended" 403 on ALL routes.
+
+### PART 3 — Super-Admin Routes
+
+| Route | What it does |
+|---|---|
+| `GET /api/admin/users` | Paginated list of all users with entity counts |
+| `GET /api/admin/users/:uid` | Single user detail with counts, org, suspension status |
+| `GET /api/admin/organizations` | All organizations with user counts |
+| `GET /api/admin/security/overview` | Unauthorized access attempts (24h/7d), recent suspensions, currently suspended count, recent admin actions |
+| `GET /api/admin/security/audit-log` | Paginated, filterable view of AdminAuditLog |
+| `GET /api/admin/security/vulnerabilities` | Server-side npm audit summary |
+| `POST /api/admin/users/:uid/suspend` | Suspend user (requires `reason` in body) |
+| `POST /api/admin/users/:uid/unsuspend` | Lift suspension |
+| `GET /api/admin/system/health` | DB connection, Upstash/Sentry status, PAYMENTS_ENABLED, git commit |
+
+### PART 4 — Tests
+- **21 new Jest tests** in `adminService.test.js` covering: checkSuperAdmin (3), checkUserSuspended (3), logAdminAction (1), suspendUser (3), unsuspendUser (2), getSystemHealth (1), getNpmAuditSummary (2), listUsers (1), getUserDetail (2), listOrganizations (1), getSecurityOverview (1), getAuditLog (1)
+- **4 leak-check tests** in `adminLeakCheck.test.js` — explicitly verify isSuperAdmin never appears in client/property/owner service responses
+- **Total: 91 tests, 9 suites, all pass**
+
+### PART 5 — Manual Super-Admin Setup (you only, never automated)
+
+```
+1. npx prisma studio
+2. Find your User row (search by your email/uid)
+3. Manually set isSuperAdmin = true on that row
+4. Save
+5. Verify: call GET /api/admin/users with your auth token — should return user list
+6. NEVER do this for any other account without explicit intent
+```
+
+**MFA prerequisite:** Firebase MFA must be enabled in the Firebase Console (Authentication > Settings > Multi-factor authentication). The code checks for the `multi_factor` claim — it will block admin access until MFA is configured. Until then, the routes return a clear message directing you to complete MFA setup.

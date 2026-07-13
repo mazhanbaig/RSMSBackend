@@ -36,6 +36,7 @@ model User {
   photoURL           String?
   provider           String?
   createdAt          DateTime     @default(now())
+  isSuperAdmin       Boolean      @default(false)
 
   clients      Client[]
   owners       Owner[]
@@ -46,6 +47,41 @@ model User {
 
   @@index([orgId])
   @@index([uid])
+
+  adminAuditLogs   AdminAuditLog[]
+  userSuspensions  UserSuspension[]
+}
+
+// ─── Admin Audit Log ────────────────────────────────────────────────
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  adminUserId String
+  admin       User     @relation(fields: [adminUserId], references: [id])
+  action      String
+  targetType  String?
+  targetId    String?
+  details     Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([adminUserId])
+  @@index([createdAt])
+}
+
+// ─── User Suspension ────────────────────────────────────────────────
+
+model UserSuspension {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  reason      String
+  suspendedBy String
+  suspendedAt DateTime  @default(now())
+  liftedAt    DateTime?
+  liftedBy    String?
+
+  @@index([userId])
 }
 
 // ─── Client ─────────────────────────────────────────────────────────

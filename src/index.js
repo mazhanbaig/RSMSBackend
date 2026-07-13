@@ -33,6 +33,7 @@ const eventRoutes = require("./routes/events");
 const taskRoutes = require("./routes/tasks");
 const toolsRoutes = require("./routes/tools");
 const analyticsRoutes = require("./routes/analytics");
+const adminRoutes = require("./routes/admin");
 
 const app = express();
 
@@ -60,7 +61,7 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // Global limiter: 100 requests per 15 min per IP UNLESS using Upstash Redis, where
 // we use @upstash/ratelimit's sliding window (more accurate for serverless).
 
-let globalLimiter, strictLimiter;
+let globalLimiter, strictLimiter, adminLimiter;
 
 if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
     const redis = new Redis({
@@ -80,6 +81,12 @@ if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) 
         prefix: "rsms:strict",
     });
 
+    const adminRatelimit = new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(10, '15 m'),
+        prefix: "rsms:admin",
+    });
+
     globalLimiter = (req, res, next) => {
         globalRatelimit.limit(req.ip).then(({ success }) => {
             if (!success) {
@@ -91,6 +98,15 @@ if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) 
 
     strictLimiter = (req, res, next) => {
         strictRatelimit.limit(req.ip).then(({ success }) => {
+            if (!success) {
+                return res.status(429).json({ success: false, message: "Too many requests, please try again later" });
+            }
+            next();
+        }).catch(() => next());
+    };
+
+    adminLimiter = (req, res, next) => {
+        adminRatelimit.limit(req.ip).then(({ success }) => {
             if (!success) {
                 return res.status(429).json({ success: false, message: "Too many requests, please try again later" });
             }
@@ -120,6 +136,14 @@ if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) 
         legacyHeaders: false,
         message: { success: false, message: "Too many requests, please try again later" },
     });
+
+    adminLimiter = rateLimit({
+        windowMs: 15 * 60 * 1000,
+        max: 10,
+        standardHeaders: true,
+        legacyHeaders: false,
+        message: { success: false, message: "Too many requests, please try again later" },
+    });
 }
 
 app.use(globalLimiter);
@@ -145,6 +169,7 @@ app.use("/api/events", eventRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/tools", toolsRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/admin", adminLimiter, adminRoutes);
 
 // ─── Sentry Error Handler (must be last) ─────────────────────────────
 // Captures unhandled errors and sends them to Sentry when DSN is configured.
