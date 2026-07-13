@@ -1134,3 +1134,22 @@ Both property UIDs are UUIDs (not Firebase Auth UIDs) — they were never valid 
 
 ### GIT STATE
 - Committed and pushed to `dev` only.
+
+---
+
+## Phase 2 Cleanup — July 13, 2026
+
+Cleared out all confirmed test/dead items from the deep evaluation (see Cleanup Summary above for the original findings).
+
+### DELETED
+| Item | Count | Reason |
+|---|---|---|
+| Property `zz` (title "zz", price 1111) | 1 record | Gibberish test data |
+| Tasks with "Unnamed Task" (IDs are Firebase field names: `completed`, `createdAt`, etc.) | 6 records | Backfill artifacts from malformed Firebase data |
+| Owners with "Unnamed Owner" (real emails/phones but null names in Firebase) | 6 records | Backfill fallback artifacts |
+| `src/middlewares/subscription.middleware.js` | 1 file | Dead code — 47 lines, never imported by any route |
+
+### VERIFIED
+- `.env` was already in `.gitignore` and not tracked by git — the earlier note was incorrect, no action needed.
+- **66/66 Jest tests pass** (unchanged from prior run — no test coverage was lost).
+- Postgres counts after cleanup: 6 properties, 1 task, 0 owners, 9 clients, 4 events.
