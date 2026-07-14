@@ -1188,7 +1188,7 @@ Cleared out all confirmed test/dead items from the deep evaluation (see Cleanup 
 | `GET /api/admin/security/vulnerabilities` | Server-side npm audit summary |
 | `POST /api/admin/users/:uid/suspend` | Suspend user (requires `reason` in body) |
 | `POST /api/admin/users/:uid/unsuspend` | Lift suspension |
-| `GET /api/admin/users/:uid/mfa-status` | Check a user's MFA enrollment (enrolled factors, phone numbers) |
+| `GET /api/admin/users/:uid/mfa-status` | Check a user's MFA enrollment (enrolled factors, types) |
 | `GET /api/admin/system/health` | DB connection, Upstash/Sentry status, PAYMENTS_ENABLED, git commit |
 
 ### MFA Verification Logic (requireSuperAdmin middleware)
@@ -1205,7 +1205,7 @@ Three outcomes:
 | MFA enrolled but not used in this session | 403 with instructions to sign out and sign in again (will trigger MFA prompt) |
 | MFA enrolled AND used in current session | **Allow** — passes through to admin routes |
 
-This means MFA works immediately when: (a) MFA is enabled in Firebase Console, (b) the admin user has enrolled a phone number, and (c) they sign in fresh so the ID token includes the `multi_factor` claim.
+This means MFA works immediately when: (a) MFA is enabled in Firebase Console, (b) the admin user has enrolled an authenticator app (TOTP) factor, and (c) they sign in fresh so the ID token includes the `multi_factor` claim.
 
 ### PART 4 — Tests
 - **21 new Jest tests** in `adminService.test.js` covering: checkSuperAdmin (3), checkUserSuspended (3), logAdminAction (1), suspendUser (3), unsuspendUser (2), getSystemHealth (1), getNpmAuditSummary (2), listUsers (1), getUserDetail (2), listOrganizations (1), getSecurityOverview (1), getAuditLog (1)
@@ -1223,19 +1223,25 @@ This means MFA works immediately when: (a) MFA is enabled in Firebase Console, (
 6. NEVER do this for any other account without explicit intent
 ```
 
-**MFA setup prerequisite (one-time Firebase Console config):**
+**MFA setup prerequisite (one-time Firebase Console config) — TOTP (free tier):**
 ```
 1. Go to https://console.firebase.google.com/project/rsms-5d122/authentication/settings
 2. Under "Multi-factor authentication", click Enable
-3. Select "Phone" as the factor type
-4. Configure SMS templates as needed
-5. Save
+3. Select "Authenticator apps (TOTP)" as the factor type — NOT "SMS"
+4. Save
 ```
-After enabling MFA in the project, the admin user needs to enroll a phone number:
-- Sign out of the app, sign in again — the Firebase Auth SDK should prompt for MFA enrollment
-- Or enroll directly at Firebase Console > Authentication > Users > select your user > Enroll MFA factor
+Note: TOTP is available on the free Spark plan. SMS-based MFA requires the paid Blaze plan.
 
-The middleware will verify enrollment via `auth.getUser()` and reject until MFA is properly set up.
+After enabling MFA in the project, the admin user needs to enroll an authenticator app:
+1. Install an authenticator app on your phone (Google Authenticator, Authy, Microsoft Authenticator — any standard TOTP app)
+2. Sign out of RSMS, sign back in
+3. Firebase Auth SDK will prompt for MFA enrollment — choose "Authenticator app"
+4. Scan the QR code shown with your authenticator app
+5. Enter the 6-digit code it generates to confirm enrollment
+6. From now on, signing in will ask for a code from your authenticator app
+7. Verify: call `GET /api/admin/users` with a fresh token — should succeed instead of returning 403
+
+The middleware will verify enrollment via `auth.getUser()` and reject until MFA is properly set up. The check is factor-agnostic — it works for both TOTP and phone factors without code changes.
 
 ---
 
@@ -1462,8 +1468,8 @@ $ git log --oneline --graph --all -20
 - **`isSuperAdmin = true` is already set** on 1 user:
   - Email: `mazhanbaig44@gmail.com` (role: agent)
 - **MFA is NOT enrolled** on this user.
-- **BLOCKING:** The `requireSuperAdmin` middleware's MFA check will reject until the project owner enables MFA in Firebase Console and the user enrolls a phone factor. Steps are documented in the earlier Super-Admin report (Firebase Console > Authentication > MFA > Enable Phone, then user self-enrolls on their next sign-in).
-- **Note to project owner:** You are already a super-admin. Enable MFA via the Firebase Console to fully activate admin route access.
+- **BLOCKING:** The `requireSuperAdmin` middleware's MFA check will reject until the project owner enables TOTP in Firebase Console and the user enrolls an authenticator app. See the updated instructions above (lines ~1226-1244) — TOTP is free (Spark plan), no SMS/Blaze required.
+- **Note to project owner:** You are already a super-admin. Enable TOTP via the Firebase Console to fully activate admin route access.
 
 ### FULL TEST SUITE
 

@@ -57,10 +57,10 @@ const requireSuperAdmin = async (req, res, next) => {
             return res.status(403).json({
                 success: false,
                 message: 'Multi-factor authentication is required for admin access. Please enroll in MFA first:\n\n' +
-                    '1. Go to your Firebase Account: https://console.firebase.google.com\n' +
-                    '2. Navigate to Authentication > Multi-factor authentication\n' +
-                    '3. Follow the prompts to add a phone number\n' +
-                    '4. After enrolling, sign out and sign back in\n' +
+                    '1. Install an authenticator app (Google Authenticator, Authy, etc.)\n' +
+                    '2. Sign out of RSMS, then sign back in\n' +
+                    '3. When prompted, enroll by scanning the QR code with your authenticator app\n' +
+                    '4. Enter the 6-digit code it generates to complete enrollment\n' +
                     '5. Retry this request',
                 data: {
                     mfaEnrolled: false,
@@ -93,7 +93,7 @@ const requireSuperAdmin = async (req, res, next) => {
                 data: {
                     mfaEnrolled: true,
                     mfaUsedInSession: false,
-                    enrolledFactors: enrolledFactors.map(f => ({ factorId: f.uid, phoneNumber: f.phoneNumber })),
+                    enrolledFactors: enrolledFactors.map(f => ({ factorId: f.uid, factorType: f.factorId, displayName: f.displayName })),
                 },
                 error: null,
             });
