@@ -1311,3 +1311,47 @@ Tests:       141 passed, 141 total
 - Public-scoped post creation leaves `orgId` undefined (null in DB)
 - Hidden posts never appear in list, get, or comment operations (return 404)
 - Only the author can update/delete their post; non-authors get 404
+
+---
+
+## Parts 3-5: Share Links, Chat Threads, Extended Admin — July 14, 2026
+
+**Scope:** Property share links with public view/visitor registration, visitor chat threads with Firebase RTDB real-time messaging, and extended admin community/post/shares overview.
+
+### Files created
+- `src/services/shareService.js` — 5 functions: `createShareLink`, `deactivateShareLink`, `getShareLinkByToken`, `registerVisitor`, `getShareLinksByProperty`
+- `src/controllers/shareController.js` — 5 handlers in standard pattern
+- `src/routes/share.js` — 5 routes (2 public, 3 auth-guarded)
+- `src/services/chatService.js` — 4 functions: `startChat`, `listThreads`, `convertToClient`, `getThread`
+- `src/controllers/chatController.js` — 4 handlers in standard pattern
+- `src/routes/chat.js` — 4 routes (1 public, 3 auth-guarded)
+- `tests/services/shareService.test.js` — 10 tests
+- `tests/services/chatService.test.js` — 10 tests
+
+### Files extended
+- `src/routes/admin.js` — added 5 new admin routes (community moderation + platform overview)
+- `src/controllers/adminController.js` — added 5 new handler functions
+- `src/services/adminService.js` — added 5 new functions: `hideCommunityPost`, `unhideCommunityPost`, `listAllCommunityPosts`, `getPropertySharesOverview`, `getChatThreadsOverview`
+- `tests/services/adminService.test.js` — added 5 new describe blocks (extended from 12 to 17 blocks)
+- `src/index.js` — added `shareRoutes` and `chatRoutes` imports and mounts at `/api`
+
+### Key behaviours
+- Public share routes never return owner PII (property select is explicitly narrowed to title, price, address, city, type, bedrooms, bathrooms, images)
+- Deactivated links return 404 from public view (no "disabled" message leak)
+- Share links and chat threads are ownership-isolated: only the property's owning agent can manage them
+- `startChat` initializes a Firebase RTDB path at `propertyChats/{shareLinkId}/{visitorId}/messages`
+- A visitor can only start one chat thread (unique `visitorId` constraint on `ChatThread`)
+- `convertToClient` pre-fills Client name/phone from visitor data and links `convertedToClientId` back
+- Admin hide post correctly sets `hidden=true`, `hiddenBy`, `hiddenReason` and logs to `AdminAuditLog`
+- Admin `getPropertySharesOverview` is a cross-org query (intentional — super admin privilege)
+- New admin routes protected by existing `requireSuperAdmin` + `verifyUser` middleware
+
+### Verification
+```
+Test Suites: 14 passed, 14 total
+Tests:       171 passed, 171 total
+```
+171 tests across 14 suites (was 141 in 12). Added:
+- `shareService.test.js` — 10 tests (ownership isolation for create/deactivate/list, public route PII check, viewCount increment, visitor registration)
+- `chatService.test.js` — 10 tests (Firebase RTDB init, unique chat per visitor, ownership isolation for list/get/convert)
+- `adminService.test.js` — 5 new describe blocks (hide/unhide post, list all posts, shares overview, chat threads overview)

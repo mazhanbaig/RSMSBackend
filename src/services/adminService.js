@@ -285,6 +285,87 @@ async function getSystemHealth() {
     };
 }
 
+async function hideCommunityPost(adminUserId, postId, reason) {
+    const prisma = getPrisma();
+    const post = await prisma.communityPost.findUnique({ where: { id: postId } });
+    if (!post) return { error: 'Post not found', status: 404 };
+
+    await prisma.communityPost.update({
+        where: { id: postId },
+        data: { hidden: true, hiddenBy: adminUserId, hiddenReason: reason },
+    });
+    return { success: true };
+}
+
+async function unhideCommunityPost(adminUserId, postId) {
+    const prisma = getPrisma();
+    const post = await prisma.communityPost.findUnique({ where: { id: postId } });
+    if (!post) return { error: 'Post not found', status: 404 };
+
+    await prisma.communityPost.update({
+        where: { id: postId },
+        data: { hidden: false, hiddenBy: null, hiddenReason: null },
+    });
+    return { success: true };
+}
+
+async function listAllCommunityPosts(adminUserId, filters) {
+    const prisma = getPrisma();
+    const where = {};
+    if (filters.scope) where.scope = filters.scope;
+    if (filters.orgId) where.orgId = filters.orgId;
+    if (!filters.includeHidden) where.hidden = false;
+
+    const page = filters.page || 1;
+    const limit = filters.limit || 20;
+    const skip = (page - 1) * limit;
+
+    const [posts, total] = await Promise.all([
+        prisma.communityPost.findMany({
+            where,
+            skip,
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+            include: {
+                author: { select: { id: true, name: true, email: true } },
+                _count: { select: { comments: true } },
+            },
+        }),
+        prisma.communityPost.count({ where }),
+    ]);
+    return { data: posts, total, page, limit, totalPages: Math.ceil(total / limit) };
+}
+
+async function getPropertySharesOverview(adminUserId) {
+    const prisma = getPrisma();
+    const [activeShareLinks, totalVisitors, totalConversions] = await Promise.all([
+        prisma.propertyShareLink.count({ where: { active: true } }),
+        prisma.propertyVisitor.count(),
+        prisma.propertyVisitor.count({ where: { convertedToClientId: { not: null } } }),
+    ]);
+    return {
+        data: {
+            activeShareLinks,
+            totalVisitors,
+            totalConversions,
+        },
+    };
+}
+
+async function getChatThreadsOverview(adminUserId) {
+    const prisma = getPrisma();
+    const [activeThreads, totalThreads] = await Promise.all([
+        prisma.chatThread.count({ where: { status: 'active' } }),
+        prisma.chatThread.count(),
+    ]);
+    return {
+        data: {
+            activeThreads,
+            totalThreads,
+        },
+    };
+}
+
 module.exports = {
     logAdminAction,
     checkSuperAdmin,
@@ -298,4 +379,9 @@ module.exports = {
     suspendUser,
     unsuspendUser,
     getSystemHealth,
+    hideCommunityPost,
+    unhideCommunityPost,
+    listAllCommunityPosts,
+    getPropertySharesOverview,
+    getChatThreadsOverview,
 };

@@ -41,6 +41,21 @@ describe('adminService', () => {
                 update: jest.fn(),
             },
             $queryRawUnsafe: jest.fn(),
+            communityPost: {
+                findUnique: jest.fn(),
+                findMany: jest.fn(),
+                count: jest.fn(),
+                update: jest.fn(),
+            },
+            propertyShareLink: {
+                count: jest.fn(),
+            },
+            propertyVisitor: {
+                count: jest.fn(),
+            },
+            chatThread: {
+                count: jest.fn(),
+            },
         };
         getPrisma.mockReturnValue(mockPrisma);
     });
@@ -260,6 +275,124 @@ describe('adminService', () => {
             mockPrisma.adminAuditLog.count.mockResolvedValue(1);
             const result = await adminService.getAuditLog(1, 50, {});
             expect(result.data).toHaveLength(1);
+        });
+    });
+
+    describe('hideCommunityPost', () => {
+        test('sets hidden=true and logs to AdminAuditLog', async () => {
+            const postId = 'post-cuid-1';
+            mockPrisma.communityPost.findUnique.mockResolvedValue({ id: postId, hidden: false });
+            mockPrisma.communityPost.update.mockResolvedValue({ id: postId, hidden: true, hiddenBy: adminUserId, hiddenReason: 'Spam' });
+            mockPrisma.adminAuditLog.create.mockResolvedValue({ id: 'log-1' });
+
+            const result = await adminService.hideCommunityPost(adminUserId, postId, 'Spam');
+
+            expect(mockPrisma.communityPost.findUnique).toHaveBeenCalledWith({ where: { id: postId } });
+            expect(mockPrisma.communityPost.update).toHaveBeenCalledWith({
+                where: { id: postId },
+                data: { hidden: true, hiddenBy: adminUserId, hiddenReason: 'Spam' },
+            });
+            expect(result.success).toBe(true);
+        });
+
+        test('returns error when post not found', async () => {
+            mockPrisma.communityPost.findUnique.mockResolvedValue(null);
+
+            const result = await adminService.hideCommunityPost(adminUserId, 'nonexistent', 'Reason');
+
+            expect(result.error).toBe('Post not found');
+            expect(mockPrisma.communityPost.update).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('unhideCommunityPost', () => {
+        test('reverses hidden state and clears fields', async () => {
+            const postId = 'post-cuid-1';
+            mockPrisma.communityPost.findUnique.mockResolvedValue({ id: postId, hidden: true, hiddenBy: adminUserId, hiddenReason: 'Spam' });
+            mockPrisma.communityPost.update.mockResolvedValue({ id: postId, hidden: false, hiddenBy: null, hiddenReason: null });
+
+            const result = await adminService.unhideCommunityPost(adminUserId, postId);
+
+            expect(mockPrisma.communityPost.update).toHaveBeenCalledWith({
+                where: { id: postId },
+                data: { hidden: false, hiddenBy: null, hiddenReason: null },
+            });
+            expect(result.success).toBe(true);
+        });
+
+        test('returns error when post not found', async () => {
+            mockPrisma.communityPost.findUnique.mockResolvedValue(null);
+
+            const result = await adminService.unhideCommunityPost(adminUserId, 'nonexistent');
+
+            expect(result.error).toBe('Post not found');
+        });
+    });
+
+    describe('listAllCommunityPosts', () => {
+        test('includes hidden posts by default', async () => {
+            const filters = { page: 1, limit: 20, includeHidden: true };
+            mockPrisma.communityPost.findMany.mockResolvedValue([
+                { id: 'p1', title: 'Visible Post', hidden: false, author: { name: 'User' }, _count: { comments: 0 } },
+                { id: 'p2', title: 'Hidden Post', hidden: true, author: { name: 'User' }, _count: { comments: 0 } },
+            ]);
+            mockPrisma.communityPost.count.mockResolvedValue(2);
+
+            const result = await adminService.listAllCommunityPosts(adminUserId, filters);
+
+            expect(mockPrisma.communityPost.findMany).toHaveBeenCalled();
+            expect(result.data).toHaveLength(2);
+            expect(result.total).toBe(2);
+        });
+
+        test('filters out hidden posts when includeHidden is false', async () => {
+            const filters = { page: 1, limit: 20, includeHidden: false };
+            mockPrisma.communityPost.findMany.mockResolvedValue([
+                { id: 'p1', title: 'Visible Post', hidden: false, author: { name: 'User' }, _count: { comments: 0 } },
+            ]);
+            mockPrisma.communityPost.count.mockResolvedValue(1);
+
+            const result = await adminService.listAllCommunityPosts(adminUserId, filters);
+
+            expect(mockPrisma.communityPost.findMany).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: { hidden: false },
+                })
+            );
+            expect(result.data).toHaveLength(1);
+        });
+    });
+
+    describe('getPropertySharesOverview', () => {
+        test('returns aggregate stats across all orgs', async () => {
+            mockPrisma.propertyShareLink.count.mockResolvedValue(10);
+            mockPrisma.propertyVisitor.count.mockResolvedValueOnce(25).mockResolvedValueOnce(3);
+
+            const result = await adminService.getPropertySharesOverview(adminUserId);
+
+            expect(mockPrisma.propertyShareLink.count).toHaveBeenCalledWith({ where: { active: true } });
+            expect(mockPrisma.propertyVisitor.count).toHaveBeenCalled();
+            expect(mockPrisma.propertyVisitor.count).toHaveBeenCalledWith({ where: { convertedToClientId: { not: null } } });
+            expect(result.data).toEqual({
+                activeShareLinks: 10,
+                totalVisitors: 25,
+                totalConversions: 3,
+            });
+        });
+    });
+
+    describe('getChatThreadsOverview', () => {
+        test('returns chat thread metadata counts', async () => {
+            mockPrisma.chatThread.count.mockResolvedValueOnce(5).mockResolvedValueOnce(8);
+
+            const result = await adminService.getChatThreadsOverview(adminUserId);
+
+            expect(mockPrisma.chatThread.count).toHaveBeenCalledWith({ where: { status: 'active' } });
+            expect(mockPrisma.chatThread.count).toHaveBeenCalledWith();
+            expect(result.data).toEqual({
+                activeThreads: 5,
+                totalThreads: 8,
+            });
         });
     });
 });

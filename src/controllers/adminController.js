@@ -155,4 +155,80 @@ async function mfaStatus(req, res) {
     }
 }
 
-module.exports = { listUsers, getUserDetail, listOrganizations, securityOverview, auditLog, vulnerabilities, suspendUser, unsuspendUser, systemHealth, mfaStatus };
+async function hidePost(req, res) {
+    try {
+        const { reason } = req.body;
+        if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+            return res.status(400).json(ResponseObj(false, 'Reason is required and must be a non-empty string'));
+        }
+        const result = await adminService.hideCommunityPost(req.adminUserId, req.params.id, reason.trim());
+        if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
+        await adminService.logAdminAction(req.adminUserId, 'hide_community_post', 'CommunityPost', req.params.id, { reason }, req.ip);
+        res.status(200).json(ResponseObj(true, 'Post hidden'));
+    } catch (err) {
+        Sentry.captureException(err);
+        console.error('adminController.hidePost:', err);
+        res.status(500).json(ResponseObj(false, 'Failed to hide post', null, err.message));
+    }
+}
+
+async function unhidePost(req, res) {
+    try {
+        const result = await adminService.unhideCommunityPost(req.adminUserId, req.params.id);
+        if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
+        await adminService.logAdminAction(req.adminUserId, 'unhide_community_post', 'CommunityPost', req.params.id, null, req.ip);
+        res.status(200).json(ResponseObj(true, 'Post unhidden'));
+    } catch (err) {
+        Sentry.captureException(err);
+        console.error('adminController.unhidePost:', err);
+        res.status(500).json(ResponseObj(false, 'Failed to unhide post', null, err.message));
+    }
+}
+
+async function listAllPosts(req, res) {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const filters = {
+            scope: req.query.scope || null,
+            orgId: req.query.orgId || null,
+            includeHidden: req.query.includeHidden !== 'false',
+        };
+        const result = await adminService.listAllCommunityPosts(req.adminUserId, { ...filters, page, limit });
+        if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
+        await adminService.logAdminAction(req.adminUserId, 'list_all_community_posts', null, null, { page, limit, filters }, req.ip);
+        res.status(200).json(ResponseObj(true, 'Posts fetched', result));
+    } catch (err) {
+        Sentry.captureException(err);
+        console.error('adminController.listAllPosts:', err);
+        res.status(500).json(ResponseObj(false, 'Failed to fetch posts', null, err.message));
+    }
+}
+
+async function propertySharesOverview(req, res) {
+    try {
+        const result = await adminService.getPropertySharesOverview(req.adminUserId);
+        if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
+        await adminService.logAdminAction(req.adminUserId, 'viewed_property_shares_overview', null, null, null, req.ip);
+        res.status(200).json(ResponseObj(true, 'Property shares overview fetched', result.data));
+    } catch (err) {
+        Sentry.captureException(err);
+        console.error('adminController.propertySharesOverview:', err);
+        res.status(500).json(ResponseObj(false, 'Failed to fetch property shares overview', null, err.message));
+    }
+}
+
+async function chatThreadsOverview(req, res) {
+    try {
+        const result = await adminService.getChatThreadsOverview(req.adminUserId);
+        if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
+        await adminService.logAdminAction(req.adminUserId, 'viewed_chat_threads_overview', null, null, null, req.ip);
+        res.status(200).json(ResponseObj(true, 'Chat threads overview fetched', result.data));
+    } catch (err) {
+        Sentry.captureException(err);
+        console.error('adminController.chatThreadsOverview:', err);
+        res.status(500).json(ResponseObj(false, 'Failed to fetch chat threads overview', null, err.message));
+    }
+}
+
+module.exports = { listUsers, getUserDetail, listOrganizations, securityOverview, auditLog, vulnerabilities, suspendUser, unsuspendUser, systemHealth, mfaStatus, hidePost, unhidePost, listAllPosts, propertySharesOverview, chatThreadsOverview };

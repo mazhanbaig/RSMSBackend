@@ -27,4 +27,13 @@ router.post('/users/:uid/unsuspend', adminController.unsuspendUser);
 // 3.4 — System health
 router.get('/system/health', adminController.systemHealth);
 
+// Community moderation
+router.post('/community/posts/:id/hide', verifyUser, requireSuperAdmin, adminController.hidePost);
+router.post('/community/posts/:id/unhide', verifyUser, requireSuperAdmin, adminController.unhidePost);
+router.get('/community/posts', verifyUser, requireSuperAdmin, adminController.listAllPosts);
+
+// Platform overview
+router.get('/property-shares/overview', verifyUser, requireSuperAdmin, adminController.propertySharesOverview);
+router.get('/chat-threads/overview', verifyUser, requireSuperAdmin, adminController.chatThreadsOverview);
+
 module.exports = router;
