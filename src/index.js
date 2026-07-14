@@ -36,6 +36,10 @@ const analyticsRoutes = require("./routes/analytics");
 const invoiceRoutes = require("./routes/invoices");
 const approvalRoutes = require("./routes/approvals");
 const adminRoutes = require("./routes/admin");
+const activityRoutes = require("./routes/activity");
+const communityRoutes = require("./routes/community");
+const shareRoutes = require("./routes/share");
+const chatRoutes = require("./routes/chat");
 
 const app = express();
 
@@ -157,6 +161,7 @@ app.use("/api/owners", strictLimiter);
 app.use("/api/properties", strictLimiter);
 app.use("/api/events", strictLimiter);
 app.use("/api/tasks", strictLimiter);
+app.use("/api/activity", strictLimiter);
 
 // Payment routes get the default global limiter only (no special limiting per instructions)
 
@@ -174,6 +179,10 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/invoices", strictLimiter, invoiceRoutes);
 app.use("/api/approvals", strictLimiter, approvalRoutes);
 app.use("/api/admin", adminLimiter, adminRoutes);
+app.use("/api/activity", activityRoutes);
+app.use("/api/community", strictLimiter, communityRoutes);
+app.use("/api", shareRoutes);
+app.use("/api", chatRoutes);
 
 // ─── Sentry Error Handler (must be last) ─────────────────────────────
 // Captures unhandled errors and sends them to Sentry when DSN is configured.

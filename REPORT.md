@@ -1280,3 +1280,34 @@ Tests:       115 passed, 115 total
 - Applied via `prisma db push` — DB is now in sync with schema
 - Migration history drift exists (previous AdminAuditLog/UserSuspension changes were db-pushed, not migrated)
 - If `prisma migrate dev` is ever needed, use `prisma migrate resolve` to baseline first
+
+---
+
+## Community Hub (Part 2) — July 14, 2026
+
+**Scope:** CommunityPost + CommunityComment — services, controllers, routes, tests.
+
+### Files created
+- `src/services/communityService.js` — 7 functions: `listPosts`, `getPost`, `createPost`, `createComment`, `getCommentsByPost`, `updatePost`, `deletePost`
+- `src/controllers/communityController.js` — 7 handlers matching the standard try/catch/Sentry/ResponseObj pattern
+- `src/routes/community.js` — 7 routes mounted at `/api/community`
+- `tests/services/communityService.test.js` — 26 tests
+
+### Changes to existing files
+- `src/index.js` — added `communityRoutes` import and mounted at `/api/community` with `strictLimiter`
+
+### Verification
+```
+Test Suites: 12 passed, 12 total
+Tests:       141 passed, 141 total
+```
+
+26 new community tests + 115 existing = 141 total. All pass.
+
+### Key behaviours verified in tests
+- Org-scoped posts only visible to users in the same org; different-org users get empty results or 404
+- Public-scoped posts visible to everyone regardless of org
+- Org-scoped post creation auto-sets `orgId` from caller — cannot set another org's ID
+- Public-scoped post creation leaves `orgId` undefined (null in DB)
+- Hidden posts never appear in list, get, or comment operations (return 404)
+- Only the author can update/delete their post; non-authors get 404
