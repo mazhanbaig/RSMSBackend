@@ -39,6 +39,8 @@ model User {
   createdAt          DateTime     @default(now())
   role               String       @default("agent")
   isSuperAdmin       Boolean      @default(false)
+  totpSecret         String?
+  totpEnabled        Boolean      @default(false)
 
   clients      Client[]
   owners       Owner[]

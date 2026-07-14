@@ -1,6 +1,8 @@
 const Sentry = require('@sentry/node');
+const { getPrisma } = require('../config/database');
 const ResponseObj = require('../utils/ResponseObj');
 const adminService = require('../services/adminService');
+const mfaService = require('../services/mfaService');
 
 async function listUsers(req, res) {
     try {
@@ -129,29 +131,67 @@ async function systemHealth(req, res) {
 
 async function mfaStatus(req, res) {
     try {
-        const { auth } = require('../config/firebase');
-        let firebaseUser;
-        try {
-            firebaseUser = await auth.getUser(req.params.uid);
-        } catch (fbErr) {
-            return res.status(404).json(ResponseObj(false, 'Firebase user not found', null, fbErr.message));
+        const result = await mfaService.getStatus(req.params.uid);
+        if (result.error) {
+            return res.status(result.status).json(ResponseObj(false, result.error));
         }
-        const enrolledFactors = (firebaseUser.mfaInfo || []).map(f => ({
-            factorId: f.uid,
-            phoneNumber: f.phoneNumber,
-            displayName: f.displayName,
-            enrolledAt: f.enrollmentTime,
-        }));
-        await adminService.logAdminAction(req.adminUserId, 'viewed_mfa_status', 'User', req.params.uid, { mfaEnrolled: enrolledFactors.length > 0 }, req.ip);
+        await adminService.logAdminAction(req.adminUserId, 'viewed_mfa_status', 'User', req.params.uid, result.data, req.ip);
         res.status(200).json(ResponseObj(true, 'MFA status fetched', {
             uid: req.params.uid,
-            mfaEnrolled: enrolledFactors.length > 0,
-            enrolledFactors,
+            ...result.data,
         }));
     } catch (err) {
         Sentry.captureException(err);
         console.error('adminController.mfaStatus:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch MFA status', null, err.message));
+    }
+}
+
+async function enrollMfa(req, res) {
+    try {
+        const result = await mfaService.generateSecret(req.user.uid);
+        if (result.error) {
+            return res.status(result.status).json(ResponseObj(false, result.error));
+        }
+        await adminService.logAdminAction(req.adminUserId, 'mfa_enrollment_started', null, null, null, req.ip);
+        res.status(200).json(ResponseObj(true, 'TOTP secret generated', result.data));
+    } catch (err) {
+        Sentry.captureException(err);
+        console.error('adminController.enrollMfa:', err);
+        res.status(500).json(ResponseObj(false, 'Failed to start MFA enrollment', null, err.message));
+    }
+}
+
+async function verifyMfaEnrollment(req, res) {
+    try {
+        const { token } = req.body;
+        if (!token || typeof token !== 'string' || token.length !== 6) {
+            return res.status(400).json(ResponseObj(false, 'A 6-digit numeric token is required'));
+        }
+        const result = await mfaService.verifyEnrollment(req.user.uid, token);
+        if (result.error) {
+            return res.status(result.status).json(ResponseObj(false, result.error));
+        }
+        await adminService.logAdminAction(req.adminUserId, 'mfa_enrollment_completed', null, null, null, req.ip);
+        res.status(200).json(ResponseObj(true, 'MFA enrollment verified', result.data));
+    } catch (err) {
+        Sentry.captureException(err);
+        console.error('adminController.verifyMfaEnrollment:', err);
+        res.status(500).json(ResponseObj(false, 'Failed to verify MFA enrollment', null, err.message));
+    }
+}
+
+async function mfaSetupStatus(req, res) {
+    try {
+        const result = await mfaService.getStatus(req.user.uid);
+        if (result.error) {
+            return res.status(result.status).json(ResponseObj(false, result.error));
+        }
+        res.status(200).json(ResponseObj(true, 'TOTP setup status fetched', result.data));
+    } catch (err) {
+        Sentry.captureException(err);
+        console.error('adminController.mfaSetupStatus:', err);
+        res.status(500).json(ResponseObj(false, 'Failed to fetch TOTP setup status', null, err.message));
     }
 }
 
@@ -231,4 +271,4 @@ async function chatThreadsOverview(req, res) {
     }
 }
 
-module.exports = { listUsers, getUserDetail, listOrganizations, securityOverview, auditLog, vulnerabilities, suspendUser, unsuspendUser, systemHealth, mfaStatus, hidePost, unhidePost, listAllPosts, propertySharesOverview, chatThreadsOverview };
+module.exports = { listUsers, getUserDetail, listOrganizations, securityOverview, auditLog, vulnerabilities, suspendUser, unsuspendUser, systemHealth, mfaStatus, hidePost, unhidePost, listAllPosts, propertySharesOverview, chatThreadsOverview, enrollMfa, verifyMfaEnrollment, mfaSetupStatus };

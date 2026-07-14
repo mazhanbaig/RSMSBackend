@@ -30,6 +30,7 @@
     "firebase-admin": "^14.1.0",
     "helmet": "^8.2.0",
     "multer": "^2.0.2",
+    "otplib": "^13.4.1",
     "pg": "^8.22.0",
     "pino-http": "^11.0.0"
   },

@@ -1491,3 +1491,40 @@ Tests:       189 passed, 189 total
 ### READY TO MERGE dev → main?
 
 **YES**, with one note: MFA enrollment is not yet done for the super-admin account. The role system, migration baselining, and all feature work are complete and verified. Merge decision remains with the project owner after reviewing this report.
+
+---
+
+## July 14, 2026 — Self-hosted TOTP Authentication (removed Firebase MFA dependency)
+
+**Task:** Replace Firebase SMS MFA with self-hosted TOTP (authenticator app) for super-admin authentication.
+
+### What changed
+- **`src/utils/encryption.js`** — AES-256-GCM encrypt/decrypt for TOTP secrets at rest
+- **`src/services/mfaService.js`** — `generateSecret`, `verifyEnrollment`, `verifyCode`, `getStatus`
+- **`src/middlewares/requireSuperAdmin.js`** — rewritten: checks `totpEnabled` on User record + `X-TOTP-Code` header per request (no longer calls Firebase `auth.getUser`)
+- **`src/controllers/adminController.js`** — added `enrollMfa`, `verifyMfaEnrollment`, `mfaSetupStatus`; rewrote `mfaStatus` to read from Postgres
+- **`src/routes/admin.js`** — 3 MFA enrollment routes (enroll, verify-enrollment, status) bypass MFA check via `checkSuperAdminOnly`
+
+### Key design decisions
+1. Secrets encrypted with AES-256-GCM at rest (random IV per secret)
+2. `TOTP_ENCRYPTION_KEY` env var with auto-generated dev fallback
+3. Per-request TOTP validation (every admin request needs `X-TOTP-Code` header)
+4. Two middleware exports: `requireSuperAdmin` (full + MFA) and `checkSuperAdminOnly` (identity-only for enrollment)
+
+### Test results
+```
+Test Suites: 18 passed, 18 total
+Tests:       210 passed, 210 total
+```
+- New: 13 tests in `tests/services/mfaService.test.js`
+- Rewritten: 8 tests in `tests/middlewares/requireSuperAdmin.test.js` (no longer mocks Firebase)
+- All old tests unaffected (197 existing tests continue passing)
+
+### Firebase MFA dependency removed
+- No more `auth.getUser()` calls in requireSuperAdmin middleware
+- No reliance on Firebase `mfaInfo` field
+- Everything is self-contained: Prisma + otplib + encryption utility
+
+**Status:** ✅ COMPLETE
+
+---

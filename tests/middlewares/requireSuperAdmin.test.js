@@ -1,29 +1,38 @@
-const { auth } = require('../../src/config/firebase');
 const adminService = require('../../src/services/adminService');
-
-jest.mock('../../src/config/firebase', () => ({
-    auth: {
-        getUser: jest.fn(),
-    },
-}));
+const mfaService = require('../../src/services/mfaService');
+const { getPrisma } = require('../../src/config/database');
 
 jest.mock('../../src/services/adminService', () => ({
     checkSuperAdmin: jest.fn(),
     logAdminAction: jest.fn(),
 }));
 
+jest.mock('../../src/services/mfaService', () => ({
+    verifyCode: jest.fn(),
+}));
+
+jest.mock('../../src/config/database', () => ({
+    getPrisma: jest.fn(),
+}));
+
 const requireSuperAdmin = require('../../src/middlewares/requireSuperAdmin');
 
 describe('requireSuperAdmin', () => {
     let req, res, next;
+    let mockPrisma;
 
     beforeEach(() => {
-        req = {
+        mockPrisma = {
             user: {
-                uid: 'admin-uid',
-                firebase: {},
+                findUnique: jest.fn(),
             },
+        };
+        getPrisma.mockReturnValue(mockPrisma);
+
+        req = {
+            user: { uid: 'admin-uid' },
             ip: '127.0.0.1',
+            headers: {},
         };
         res = {
             status: jest.fn().mockReturnThis(),
@@ -33,44 +42,20 @@ describe('requireSuperAdmin', () => {
         jest.clearAllMocks();
     });
 
-    test('passes when user is super admin with TOTP factor enrolled and used in session', async () => {
+    test('passes when user is super admin with valid TOTP code', async () => {
         adminService.checkSuperAdmin.mockResolvedValue('admin-postgres-id');
-        auth.getUser.mockResolvedValue({
-            mfaInfo: [
-                {
-                    uid: 'totp-factor-1',
-                    factorId: 'totp',
-                    displayName: 'My Authenticator',
-                    enrollmentTime: new Date().toISOString(),
-                },
-            ],
+        mockPrisma.user.findUnique.mockResolvedValue({
+            totpEnabled: true,
+            totpSecret: 'encrypted:secret:here',
         });
-        req.user.firebase = { multi_factor: [{ id: 'totp-factor-1' }] };
+        mfaService.verifyCode.mockResolvedValue({ valid: true });
+        req.headers['x-totp-code'] = '123456';
 
         await requireSuperAdmin(req, res, next);
 
         expect(next).toHaveBeenCalled();
         expect(req.adminUserId).toBe('admin-postgres-id');
-    });
-
-    test('passes when user is super admin with phone factor enrolled and used in session', async () => {
-        adminService.checkSuperAdmin.mockResolvedValue('admin-postgres-id');
-        auth.getUser.mockResolvedValue({
-            mfaInfo: [
-                {
-                    uid: 'phone-factor-1',
-                    factorId: 'phone',
-                    displayName: null,
-                    phoneNumber: '+1234567890',
-                    enrollmentTime: new Date().toISOString(),
-                },
-            ],
-        });
-        req.user.firebase = { multi_factor: [{ id: 'phone-factor-1' }] };
-
-        await requireSuperAdmin(req, res, next);
-
-        expect(next).toHaveBeenCalled();
+        expect(mfaService.verifyCode).toHaveBeenCalledWith('admin-uid', '123456');
     });
 
     test('rejects with 403 when user is not super admin', async () => {
@@ -86,44 +71,77 @@ describe('requireSuperAdmin', () => {
         expect(adminService.logAdminAction).toHaveBeenCalled();
     });
 
-    test('rejects with 403 when user has no MFA factors enrolled', async () => {
+    test('rejects with 403 when TOTP is not enabled', async () => {
         adminService.checkSuperAdmin.mockResolvedValue('admin-postgres-id');
-        auth.getUser.mockResolvedValue({ mfaInfo: [] });
+        mockPrisma.user.findUnique.mockResolvedValue({
+            totpEnabled: false,
+            totpSecret: null,
+        });
 
         await requireSuperAdmin(req, res, next);
 
         expect(res.status).toHaveBeenCalledWith(403);
         const body = res.json.mock.calls[0][0];
         expect(body.message).toContain('Multi-factor authentication is required');
-        expect(body.data.mfaEnrolled).toBe(false);
+        expect(body.data.totpEnabled).toBe(false);
+        expect(body.data.totpEnrolled).toBe(false);
         expect(next).not.toHaveBeenCalled();
     });
 
-    test('rejects with 403 when MFA enrolled but not used in current session', async () => {
+    test('rejects with 403 when TOTP is enrolled but not yet enabled', async () => {
         adminService.checkSuperAdmin.mockResolvedValue('admin-postgres-id');
-        auth.getUser.mockResolvedValue({
-            mfaInfo: [
-                {
-                    uid: 'totp-factor-1',
-                    factorId: 'totp',
-                    displayName: 'My Authenticator',
-                },
-            ],
+        mockPrisma.user.findUnique.mockResolvedValue({
+            totpEnabled: false,
+            totpSecret: 'encrypted:secret',
         });
-        req.user.firebase = { multi_factor: [] };
 
         await requireSuperAdmin(req, res, next);
 
         expect(res.status).toHaveBeenCalledWith(403);
         const body = res.json.mock.calls[0][0];
-        expect(body.data.mfaEnrolled).toBe(true);
-        expect(body.data.mfaUsedInSession).toBe(false);
+        expect(body.message).toContain('Multi-factor authentication is required');
+        expect(body.data.totpEnabled).toBe(false);
+        expect(body.data.totpEnrolled).toBe(true);
         expect(next).not.toHaveBeenCalled();
     });
 
-    test('returns 500 when Firebase auth.getUser fails', async () => {
+    test('rejects with 403 when TOTP enabled but X-TOTP-Code header missing', async () => {
         adminService.checkSuperAdmin.mockResolvedValue('admin-postgres-id');
-        auth.getUser.mockRejectedValue(new Error('Network error'));
+        mockPrisma.user.findUnique.mockResolvedValue({
+            totpEnabled: true,
+            totpSecret: 'encrypted:secret',
+        });
+
+        await requireSuperAdmin(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        const body = res.json.mock.calls[0][0];
+        expect(body.message).toContain('X-TOTP-Code header is required');
+        expect(body.data.totpCodeMissing).toBe(true);
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    test('rejects with 403 when TOTP code is invalid', async () => {
+        adminService.checkSuperAdmin.mockResolvedValue('admin-postgres-id');
+        mockPrisma.user.findUnique.mockResolvedValue({
+            totpEnabled: true,
+            totpSecret: 'encrypted:secret',
+        });
+        mfaService.verifyCode.mockResolvedValue({ valid: false });
+        req.headers['x-totp-code'] = '000000';
+
+        await requireSuperAdmin(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        const body = res.json.mock.calls[0][0];
+        expect(body.message).toContain('Invalid TOTP code');
+        expect(body.data.totpCodeInvalid).toBe(true);
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    test('returns 500 when Prisma fails', async () => {
+        adminService.checkSuperAdmin.mockResolvedValue('admin-postgres-id');
+        mockPrisma.user.findUnique.mockRejectedValue(new Error('Database error'));
 
         await requireSuperAdmin(req, res, next);
 
@@ -133,33 +151,15 @@ describe('requireSuperAdmin', () => {
 
     test('error message references authenticator app, not phone number', async () => {
         adminService.checkSuperAdmin.mockResolvedValue('admin-postgres-id');
-        auth.getUser.mockResolvedValue({ mfaInfo: [] });
+        mockPrisma.user.findUnique.mockResolvedValue({
+            totpEnabled: false,
+            totpSecret: null,
+        });
 
         await requireSuperAdmin(req, res, next);
 
         const body = res.json.mock.calls[0][0];
         expect(body.message).toContain('authenticator app');
         expect(body.message).not.toContain('phone number');
-    });
-
-    test('response data for enrolled factors uses factorType, not phoneNumber', async () => {
-        adminService.checkSuperAdmin.mockResolvedValue('admin-postgres-id');
-        auth.getUser.mockResolvedValue({
-            mfaInfo: [
-                {
-                    uid: 'totp-factor-1',
-                    factorId: 'totp',
-                    displayName: 'My Authenticator',
-                },
-            ],
-        });
-        req.user.firebase = { multi_factor: [] };
-
-        await requireSuperAdmin(req, res, next);
-
-        const body = res.json.mock.calls[0][0];
-        expect(body.data.enrolledFactors[0].factorType).toBe('totp');
-        expect(body.data.enrolledFactors[0].factorId).toBe('totp-factor-1');
-        expect(body.data.enrolledFactors[0]).not.toHaveProperty('phoneNumber');
     });
 });

@@ -4,6 +4,11 @@ const verifyUser = require('../middlewares/authMiddleware');
 const requireSuperAdmin = require('../middlewares/requireSuperAdmin');
 const adminController = require('../controllers/adminController');
 
+// MFA enrollment routes bypass the TOTP check (can't require MFA to enroll in MFA)
+router.post('/mfa/enroll', verifyUser, requireSuperAdmin.checkSuperAdminOnly, adminController.enrollMfa);
+router.post('/mfa/verify-enrollment', verifyUser, requireSuperAdmin.checkSuperAdminOnly, adminController.verifyMfaEnrollment);
+router.get('/mfa/status', verifyUser, requireSuperAdmin.checkSuperAdminOnly, adminController.mfaSetupStatus);
+
 // All admin routes require both auth verification AND super-admin check
 router.use(verifyUser, requireSuperAdmin);
 
