@@ -1277,6 +1277,6 @@ Tests:       115 passed, 115 total
 - `approvalService.test.js` — 14 tests covering CRUD + review + ownership isolation
 
 ### Migration Status
-- Manual migration SQL created at `prisma/migrations/20260713120000_add_pipeline_invoice_approval/migration.sql`
-- **Not yet applied to database** — Neon DB was unreachable during this session
-- Run `npx prisma migrate dev` when DB is reachable to apply
+- Applied via `prisma db push` — DB is now in sync with schema
+- Migration history drift exists (previous AdminAuditLog/UserSuspension changes were db-pushed, not migrated)
+- If `prisma migrate dev` is ever needed, use `prisma migrate resolve` to baseline first
