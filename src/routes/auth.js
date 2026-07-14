@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const verifyUser = require("../middlewares/authMiddleware");
+const { requireRole } = require("../middlewares/requireRole");
 const { validateAuthData } = require("../middlewares/validate");
 const authController = require("../controllers/authController");
 
@@ -11,6 +12,6 @@ router.post("/", verifyUser, validateAuthData, authController.login);
 router.post("/logout", verifyUser, authController.logout);
 
 // ---------------- DELETE ACCOUNT ---------------------
-router.delete("/account", verifyUser, authController.deleteAccount);
+router.delete("/account", verifyUser, requireRole('owner'), authController.deleteAccount);
 
 module.exports = router;

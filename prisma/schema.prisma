@@ -37,6 +37,7 @@ model User {
   photoURL           String?
   provider           String?
   createdAt          DateTime     @default(now())
+  role               String       @default("agent")
   isSuperAdmin       Boolean      @default(false)
 
   clients      Client[]

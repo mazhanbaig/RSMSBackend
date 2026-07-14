@@ -1398,3 +1398,90 @@ Tests:       177 passed, 177 total
 
 ### Follow-ups (out of scope)
 - Activity route already had `const activityRoutes` and `app.use(...)` lines in `src/index.js` from prior commits — no changes needed there.
+
+---
+
+## Backend Closeout Status — July 14, 2026
+
+### PART 1 — Git State
+
+```
+$ git log --oneline --graph --all -20
+* d24bc3c chore(schema): add ActivityLog...
+* e986b78 feat(activity): add ActivityLog service...
+* 6e1534d feat(share-chat-admin): add share links...
+* 0cbd787 feat(community): add Community Hub...
+* b7b7a25 chore: apply migration via db push...
+* 04643d5 feat: add lead pipeline stages...
+* 795e3da feat(admin): implement real MFA verification...
+* 13f1fc0 feat(admin): add super-admin system...
+* 00ac104 chore(cleanup): remove test data...
+* a68776b feat(search,analytics,tools): ...
+* 942c45c chore(cleanup): remove confirmed test data...
+* 67894d1 docs: add AGENTS.md...
+* 03aefb7 fix(backfill): preserve Firebase UUIDs...
+* 10a3a04 test(migration): deep verification...
+* 5b07b3f docs: update REPORT.md...   <-- main
+* 5075b14 chore: consolidate duplicate import...
+* 95b673e feat(monitoring): add Sentry...
+* 5a9a934 test: add Jest service tests...
+```
+
+- **No commits from Community Hub, Share/Chat, Admin Extensions, or Activity Log work have touched `main`.**
+- `main` is at `5b07b3f`; `dev` is at `d24bc3c` plus 14 additional commits.
+- `git merge-base --is-ancestor main dev` → true (no divergence).
+- `main` remains a clean ancestor of `dev` — no merge needed before `dev→main`.
+
+### PART 2 — Role-Based Access
+
+- Added `role String @default("agent")` to User model.
+- Created `src/middlewares/requireRole.js` with two exports:
+  - `requireRole(...allowedRoles)` — factory function, checks Postgres `User.role`, returns 403 on mismatch.
+  - `requireViewerReadOnly` — blocks POST/PUT/PATCH/DELETE for `viewer` role, allows all methods for `owner`/`agent`.
+- Applied `requireRole('owner')` to:
+  - `DELETE /api/auth/account`
+  - `POST/PUT/DELETE /api/invoices/*`
+  - `PATCH /api/approvals/:id/review`
+  - `DELETE /api/approvals/:id`
+- Applied `requireViewerReadOnly` to all routes in: clients, owners, properties, events, tasks.
+- 12 new middleware tests (189 total, 16 suites, all passing).
+
+### PART 3 — Migration Debt
+
+- Baselined Prisma migration history:
+  - Generated full-schema baseline SQL via `prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script`
+  - Removed `role` column from baseline SQL (to be added in dedicated migration)
+  - Cleared stale entries from `_prisma_migrations` table via direct SQL
+  - `prisma migrate resolve --applied 20260714000000_baseline` — marked baseline as applied
+  - `prisma migrate dev --name add_user_role` — created and applied role migration
+- Current status: `prisma migrate status` reports "Database schema is up to date!" with 2 migrations in history.
+- All future schema changes should use `npx prisma migrate dev --name <description>` going forward.
+
+### PART 4 — Super-Admin Manual Setup
+
+- **`isSuperAdmin = true` is already set** on 1 user:
+  - Email: `mazhanbaig44@gmail.com` (role: agent)
+- **MFA is NOT enrolled** on this user.
+- **BLOCKING:** The `requireSuperAdmin` middleware's MFA check will reject until the project owner enables MFA in Firebase Console and the user enrolls a phone factor. Steps are documented in the earlier Super-Admin report (Firebase Console > Authentication > MFA > Enable Phone, then user self-enrolls on their next sign-in).
+- **Note to project owner:** You are already a super-admin. Enable MFA via the Firebase Console to fully activate admin route access.
+
+### FULL TEST SUITE
+
+```
+Test Suites: 16 passed, 16 total
+Tests:       189 passed, 189 total
+```
+
+16 suites, 189 tests, all passing. Includes:
+- 91 original tests (ownership isolation, auth, admin, calculator)
+- 24 pipeline/invoice/approval tests
+- 6 activity log tests
+- 26 community hub tests
+- 10 share link tests
+- 10 chat thread tests
+- 5 admin extensions tests
+- 12 role-based access tests
+
+### READY TO MERGE dev → main?
+
+**YES**, with one note: MFA enrollment is not yet done for the super-admin account. The role system, migration baselining, and all feature work are complete and verified. Merge decision remains with the project owner after reviewing this report.

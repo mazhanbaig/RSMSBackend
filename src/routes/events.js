@@ -1,13 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const verifyUser = require('../middlewares/authMiddleware');
+const { requireViewerReadOnly } = require('../middlewares/requireRole');
 const { validateEventData } = require('../middlewares/validate');
 const controller = require('../controllers/eventController');
 
-router.get('/', verifyUser, controller.list);
-router.get('/:id', verifyUser, controller.getOne);
-router.post('/', verifyUser, validateEventData, controller.create);
-router.put('/:id', verifyUser, validateEventData, controller.update);
-router.delete('/:id', verifyUser, controller.remove);
+router.use(verifyUser, requireViewerReadOnly);
+
+router.get('/', controller.list);
+router.get('/:id', controller.getOne);
+router.post('/', validateEventData, controller.create);
+router.put('/:id', validateEventData, controller.update);
+router.delete('/:id', controller.remove);
 
 module.exports = router;

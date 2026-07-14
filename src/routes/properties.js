@@ -1,14 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const verifyUser = require('../middlewares/authMiddleware');
+const { requireViewerReadOnly } = require('../middlewares/requireRole');
 const { validatePropertyData } = require('../middlewares/validate');
 const controller = require('../controllers/propertyController');
 
-router.get('/', verifyUser, controller.list);
-router.get('/:id', verifyUser, controller.getOne);
-router.post('/', verifyUser, validatePropertyData, controller.create);
-router.put('/:id', verifyUser, validatePropertyData, controller.update);
-router.patch('/:id/feature', verifyUser, controller.featureToggle);
-router.delete('/:id', verifyUser, controller.remove);
+router.use(verifyUser, requireViewerReadOnly);
+
+router.get('/', controller.list);
+router.get('/:id', controller.getOne);
+router.post('/', validatePropertyData, controller.create);
+router.put('/:id', validatePropertyData, controller.update);
+router.patch('/:id/feature', controller.featureToggle);
+router.delete('/:id', controller.remove);
 
 module.exports = router;
