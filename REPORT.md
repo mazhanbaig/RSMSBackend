@@ -1355,3 +1355,46 @@ Tests:       171 passed, 171 total
 - `shareService.test.js` — 10 tests (ownership isolation for create/deactivate/list, public route PII check, viewCount increment, visitor registration)
 - `chatService.test.js` — 10 tests (Firebase RTDB init, unique chat per visitor, ownership isolation for list/get/convert)
 - `adminService.test.js` — 5 new describe blocks (hide/unhide post, list all posts, shares overview, chat threads overview)
+
+---
+
+## Activity Log Feature — Part 1
+
+**Builds:** ActivityLog model usage — service, controller, routes, and wiring into all 6 entity services.
+
+### Changes
+
+1. **`src/services/activityService.js`** (new) — `logActivity(uid, action, entityType, entityId, details)` writes to ActivityLog table; `findAllByUser(uid, filters)` returns paginated (limit/offset), ownership-isolated, entityType-filterable results with `{ data, total }`.
+
+2. **`src/controllers/activityController.js`** (new) — `list(req, res)` follows standard Sentry/ResponseObj error pattern.
+
+3. **`src/routes/activity.js`** (new) — `GET /` with `verifyUser` middleware.
+
+4. **Wired `logActivity` into all 6 entity services:**
+   - `clientService.js` — created/updated/deleted + updatePipelineStage
+   - `ownerService.js` — created/updated/deleted
+   - `propertyService.js` — created/updated/deleted + toggleFeatured
+   - `eventService.js` — created/updated/deleted
+   - `taskService.js` — created/updated/deleted
+   - `invoiceService.js` — created/updated/deleted
+   - Each call wrapped in `.catch(() => {})` so logging failures never break entity operations.
+
+5. **`tests/services/activityService.test.js`** (new) — 6 tests covering:
+   - `logActivity` creates a record in ActivityLog
+   - `logActivity` silently no-ops when user not found
+   - `findAllByUser` returns only the calling user's logs
+   - `findAllByUser` supports entityType filter
+   - Ownership isolation (user B sees own logs, not user A's)
+   - `findAllByUser` returns 404 when user not found
+
+### Verification
+
+```
+Test Suites: 15 passed, 15 total
+Tests:       177 passed, 177 total
+```
+
+177 tests across 15 suites (was 171 in 14). Added 6 activityService tests.
+
+### Follow-ups (out of scope)
+- Activity route already had `const activityRoutes` and `app.use(...)` lines in `src/index.js` from prior commits — no changes needed there.

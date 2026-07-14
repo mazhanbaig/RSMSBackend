@@ -1,4 +1,5 @@
 const { getPrisma, resolveUserId } = require('../config/database');
+const { logActivity } = require('./activityService');
 
 function buildPropertyFilters(queryParams) {
     const filters = {};
@@ -77,6 +78,7 @@ async function create(uid, data) {
             userId,
         },
     });
+    await logActivity(uid, 'created', 'Property', record.id, null).catch(() => {});
     return { data: record };
 }
 
@@ -106,6 +108,7 @@ async function update(uid, id, data) {
             clientId: data.clientId !== undefined ? data.clientId : existing.clientId,
         },
     });
+    await logActivity(uid, 'updated', 'Property', id, { from: existing.status || existing.pipelineStage, to: data.status || data.pipelineStage }).catch(() => {});
     return { data: record };
 }
 
@@ -118,6 +121,7 @@ async function remove(uid, id) {
     if (!existing) return { error: 'Property not found', status: 404 };
 
     await prisma.property.delete({ where: { id } });
+    await logActivity(uid, 'deleted', 'Property', id, null).catch(() => {});
     return { success: true };
 }
 
@@ -133,6 +137,7 @@ async function toggleFeatured(uid, id) {
         where: { id },
         data: { featured: !existing.featured },
     });
+    await logActivity(uid, 'updated', 'Property', id, { from: existing.featured ? 'featured' : 'not-featured', to: !existing.featured ? 'featured' : 'not-featured' }).catch(() => {});
     return { data: record };
 }
 

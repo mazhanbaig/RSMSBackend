@@ -1,4 +1,5 @@
 const { getPrisma, resolveUserId } = require('../config/database');
+const { logActivity } = require('./activityService');
 
 async function findAllByUser(uid) {
     const prisma = getPrisma();
@@ -33,6 +34,7 @@ async function create(uid, data) {
             userId,
         },
     });
+    await logActivity(uid, 'created', 'Event', record.id, null).catch(() => {});
     return { data: record };
 }
 
@@ -54,6 +56,7 @@ async function update(uid, id, data) {
             propertyId: data.propertyId !== undefined ? data.propertyId : existing.propertyId,
         },
     });
+    await logActivity(uid, 'updated', 'Event', id, { from: existing.status || existing.pipelineStage, to: data.status || data.pipelineStage }).catch(() => {});
     return { data: record };
 }
 
@@ -66,6 +69,7 @@ async function remove(uid, id) {
     if (!existing) return { error: 'Event not found', status: 404 };
 
     await prisma.event.delete({ where: { id } });
+    await logActivity(uid, 'deleted', 'Event', id, null).catch(() => {});
     return { success: true };
 }
 

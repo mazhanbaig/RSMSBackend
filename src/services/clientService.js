@@ -1,4 +1,5 @@
 const { getPrisma, resolveUserId } = require('../config/database');
+const { logActivity } = require('./activityService');
 
 async function findAllByUser(uid, filters = {}) {
     const prisma = getPrisma();
@@ -37,6 +38,7 @@ async function create(uid, data) {
             userId,
         },
     });
+    await logActivity(uid, 'created', 'Client', record.id, null).catch(() => {});
     return { data: record };
 }
 
@@ -62,6 +64,7 @@ async function update(uid, id, data) {
             pipelineStage: data.pipelineStage !== undefined ? data.pipelineStage : existing.pipelineStage,
         },
     });
+    await logActivity(uid, 'updated', 'Client', id, { from: existing.pipelineStage || existing.status, to: data.pipelineStage || data.status }).catch(() => {});
     return { data: record };
 }
 
@@ -77,6 +80,7 @@ async function updatePipelineStage(uid, id, pipelineStage) {
         where: { id },
         data: { pipelineStage },
     });
+    await logActivity(uid, 'updated', 'Client', id, { from: existing.pipelineStage, to: pipelineStage }).catch(() => {});
     return { data: record };
 }
 
@@ -89,6 +93,7 @@ async function remove(uid, id) {
     if (!existing) return { error: 'Client not found', status: 404 };
 
     await prisma.client.delete({ where: { id } });
+    await logActivity(uid, 'deleted', 'Client', id, null).catch(() => {});
     return { success: true };
 }
 
