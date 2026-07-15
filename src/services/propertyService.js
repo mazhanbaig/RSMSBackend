@@ -141,4 +141,21 @@ async function toggleFeatured(uid, id) {
     return { data: record };
 }
 
-module.exports = { findAllByUser, findById, create, update, remove, toggleFeatured, buildPropertyFilters };
+async function updateCustomFields(uid, id, customFields) {
+    const prisma = getPrisma();
+    const userId = await resolveUserId(uid);
+    if (!userId) return { error: 'User not found', status: 404 };
+
+    const existing = await prisma.property.findFirst({ where: { id, userId } });
+    if (!existing) return { error: 'Property not found', status: 404 };
+
+    const merged = { ...(existing.customFields || {}), ...customFields };
+    const record = await prisma.property.update({
+        where: { id },
+        data: { customFields: merged },
+    });
+    await logActivity(uid, 'updated', 'Property', id, { field: 'customFields', customFields: merged }).catch(() => {});
+    return { data: record };
+}
+
+module.exports = { findAllByUser, findById, create, update, remove, toggleFeatured, updateCustomFields, buildPropertyFilters };

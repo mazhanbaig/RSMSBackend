@@ -74,4 +74,19 @@ async function featureToggle(req, res) {
     }
 }
 
-module.exports = { list, getOne, create, update, remove, featureToggle };
+async function updateCustomFields(req, res) {
+    try {
+        if (req.body && (typeof req.body !== 'object' || Array.isArray(req.body))) {
+            return res.status(400).json(ResponseObj(false, 'Invalid request body: customFields must be a JSON object'));
+        }
+        const result = await propertyService.updateCustomFields(req.user.uid, req.params.id, req.body);
+        if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
+        res.status(200).json(ResponseObj(true, 'Custom fields updated', result.data));
+    } catch (err) {
+        Sentry.captureException(err);
+        console.error('propertyController.updateCustomFields:', err);
+        res.status(500).json(ResponseObj(false, 'Failed to update custom fields', null, err.message));
+    }
+}
+
+module.exports = { list, getOne, create, update, remove, featureToggle, updateCustomFields };

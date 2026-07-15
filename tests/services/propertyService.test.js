@@ -249,4 +249,29 @@ describe('propertyService', () => {
       expect(mockPrisma.property.update).not.toHaveBeenCalled();
     });
   });
+
+  describe('updateCustomFields — ownership isolation', () => {
+    test('updates customFields, merging with existing', async () => {
+      const existingWithFields = { ...mockProperty, customFields: { lotSize: '5000 sqft', yearBuilt: 2010 } };
+      resolveUserId.mockResolvedValue(userIdA);
+      mockPrisma.property.findFirst.mockResolvedValue(existingWithFields);
+      mockPrisma.property.update.mockResolvedValue({ ...existingWithFields, customFields: { lotSize: '5000 sqft', yearBuilt: 2010, newField: 'value' } });
+
+      const result = await propertyService.updateCustomFields(uidA, propertyId, { newField: 'value' });
+      expect(mockPrisma.property.update).toHaveBeenCalledWith({
+        where: { id: propertyId },
+        data: { customFields: { lotSize: '5000 sqft', yearBuilt: 2010, newField: 'value' } },
+      });
+      expect(result.data.customFields.newField).toBe('value');
+    });
+
+    test('user B cannot update user A customFields', async () => {
+      resolveUserId.mockResolvedValue(userIdB);
+      mockPrisma.property.findFirst.mockResolvedValue(null);
+
+      const result = await propertyService.updateCustomFields(uidB, propertyId, { test: 'hack' });
+      expect(result.error).toBe('Property not found');
+      expect(mockPrisma.property.update).not.toHaveBeenCalled();
+    });
+  });
 });

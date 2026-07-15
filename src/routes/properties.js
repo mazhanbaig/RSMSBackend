@@ -12,6 +12,7 @@ router.get('/:id', controller.getOne);
 router.post('/', validatePropertyData, controller.create);
 router.put('/:id', validatePropertyData, controller.update);
 router.patch('/:id/feature', controller.featureToggle);
+router.patch('/:id/custom-fields', controller.updateCustomFields);
 router.delete('/:id', controller.remove);
 
 module.exports = router;

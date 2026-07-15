@@ -175,6 +175,7 @@ model Property {
   bathrooms    Int?
   featured     Boolean  @default(false)
   images       String?
+  customFields Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
