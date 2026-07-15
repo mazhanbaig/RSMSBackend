@@ -199,8 +199,8 @@ describe('approvalService', () => {
 
       const result = await approvalService.review(uidA, approvalId, { status: 'approved' });
 
-      expect(result.error).toBe('This request is already assigned to another reviewer');
-      expect(result.status).toBe(403);
+      expect(result.error).toBe('This request has already been reviewed');
+      expect(result.status).toBe(400);
     });
 
     test('returns 404 when request not found', async () => {

@@ -79,8 +79,8 @@ async function review(uid, id, reviewData) {
     const existing = await prisma.approvalRequest.findUnique({ where: { id } });
     if (!existing) return { error: 'Approval request not found', status: 404 };
 
-    if (existing.reviewerId && existing.reviewerId !== userId) {
-        return { error: 'This request is already assigned to another reviewer', status: 403 };
+    if (existing.reviewerId) {
+        return { error: 'This request has already been reviewed', status: 400 };
     }
 
     const record = await prisma.approvalRequest.update({

@@ -10,12 +10,6 @@ async function createPayment(req, res) {
     try {
         const { amount, email, selectedPayment } = req.body;
 
-        if (process.env.PAYMENTS_ENABLED !== "true") {
-            return res
-                .status(403)
-                .json(ResponseObj(false, "Payments are currently disabled", null, "PAYMENTS_ENABLED is not set to true"));
-        }
-
         const { clientData, secureHash, txnRef } = paymentService.buildPayment(
             amount,
             selectedPayment,

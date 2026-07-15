@@ -7,13 +7,21 @@ async function checkSuperAdminOnly(req, res, next) {
     try {
         const adminUserId = await adminService.checkSuperAdmin(req.user.uid);
         if (!adminUserId) {
-            await adminService.logAdminAction(
-                'unknown',
-                'unauthorized_admin_access_attempt',
-                null, null,
-                { attemptedUid: req.user.uid },
-                req.ip
-            );
+            try {
+                const userRecord = await getPrisma().user.findUnique({
+                    where: { uid: req.user.uid },
+                    select: { id: true },
+                });
+                await adminService.logAdminAction(
+                    userRecord?.id || 'unknown',
+                    'unauthorized_admin_access_attempt',
+                    null, null,
+                    { attemptedUid: req.user.uid },
+                    req.ip
+                );
+            } catch (logErr) {
+                console.error('Failed to log admin access attempt:', logErr.message);
+            }
             return res.status(403).json({
                 success: false,
                 message: 'Forbidden: Super-admin access required',
@@ -39,13 +47,21 @@ async function requireSuperAdmin(req, res, next) {
         const adminUserId = await adminService.checkSuperAdmin(firebaseUid);
 
         if (!adminUserId) {
-            await adminService.logAdminAction(
-                'unknown',
-                'unauthorized_admin_access_attempt',
-                null, null,
-                { attemptedUid: firebaseUid },
-                req.ip
-            );
+            try {
+                const userRecord = await getPrisma().user.findUnique({
+                    where: { uid: firebaseUid },
+                    select: { id: true },
+                });
+                await adminService.logAdminAction(
+                    userRecord?.id || 'unknown',
+                    'unauthorized_admin_access_attempt',
+                    null, null,
+                    { attemptedUid: firebaseUid },
+                    req.ip
+                );
+            } catch (logErr) {
+                console.error('Failed to log admin access attempt:', logErr.message);
+            }
             return res.status(403).json({
                 success: false,
                 message: 'Forbidden: Super-admin access required',

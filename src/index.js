@@ -69,7 +69,13 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 let globalLimiter, strictLimiter, adminLimiter;
 
-if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+if (process.env.LIVE_TEST === 'true' && process.env.NODE_ENV !== 'production') {
+    const rateLimit = require("express-rate-limit");
+    globalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10000, standardHeaders: true, legacyHeaders: false, message: { success: false, message: "Too many requests" } });
+    strictLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10000, standardHeaders: true, legacyHeaders: false, message: { success: false, message: "Too many requests" } });
+    adminLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10000, standardHeaders: true, legacyHeaders: false, message: { success: false, message: "Too many requests" } });
+    console.log("Rate limiting: LIVE_TEST mode — limits raised to 10000/15min");
+} else if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
     const redis = new Redis({
         url: process.env.UPSTASH_REDIS_REST_URL,
         token: process.env.UPSTASH_REDIS_REST_TOKEN,
@@ -183,6 +189,19 @@ app.use("/api/activity", activityRoutes);
 app.use("/api/community", strictLimiter, communityRoutes);
 app.use("/api", shareRoutes);
 app.use("/api", chatRoutes);
+
+// ─── Payload Too Large Handler ──────────────────────────────────────
+app.use((err, req, res, next) => {
+    if (err.type === 'entity.too.large') {
+        return res.status(413).json({
+            success: false,
+            message: 'Request body too large. Maximum size is 1MB.',
+            data: null,
+            error: null,
+        });
+    }
+    next(err);
+});
 
 // ─── Sentry Error Handler (must be last) ─────────────────────────────
 // Captures unhandled errors and sends them to Sentry when DSN is configured.

@@ -1,4 +1,4 @@
-const { authenticator } = require('otplib');
+const otplib = require('otplib');
 const { getPrisma, resolveUserId } = require('../config/database');
 const { encrypt, decrypt } = require('../utils/encryption');
 
@@ -7,7 +7,7 @@ async function generateSecret(uid) {
     const userId = await resolveUserId(uid);
     if (!userId) return { error: 'User not found', status: 404 };
 
-    const secret = authenticator.generateSecret();
+    const secret = otplib.generateSecret();
     const encrypted = encrypt(secret);
 
     await prisma.user.update({
@@ -17,7 +17,11 @@ async function generateSecret(uid) {
 
     const serviceName = 'RSMS Admin';
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
-    const otpauth = authenticator.keyuri(user.email, serviceName, secret);
+    const otpauth = otplib.generateURI({
+        issuer: serviceName,
+        label: user.email,
+        secret,
+    });
 
     return {
         data: {
@@ -37,9 +41,9 @@ async function verifyEnrollment(uid, token) {
     if (!user.totpSecret) return { error: 'No TOTP secret found. Call /api/admin/mfa/enroll first.', status: 400 };
 
     const secret = decrypt(user.totpSecret);
-    const isValid = authenticator.verify({ token, secret });
+    const result = await otplib.verify({ token, secret });
 
-    if (!isValid) return { error: 'Invalid code. Try again with the current 6-digit code from your authenticator app.', status: 400 };
+    if (!result.valid) return { error: 'Invalid code. Try again with the current 6-digit code from your authenticator app.', status: 400 };
 
     await prisma.user.update({
         where: { id: userId },
@@ -58,9 +62,9 @@ async function verifyCode(uid, token) {
     if (!user || !user.totpEnabled || !user.totpSecret) return { valid: false, reason: 'TOTP not enabled' };
 
     const secret = decrypt(user.totpSecret);
-    const isValid = authenticator.verify({ token, secret });
+    const result = await otplib.verify({ token, secret });
 
-    return { valid: isValid };
+    return { valid: result.valid };
 }
 
 async function getStatus(uid) {
