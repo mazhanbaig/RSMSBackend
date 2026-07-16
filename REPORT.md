@@ -1650,3 +1650,101 @@ Grep 'viewer' in src/ scripts/ tests/ → 0 references remaining
 ```
 
 ---
+
+## Final Route Verification + Merge to Main — July 16, 2026
+
+### PART 1 — Property Share Route Path Verification
+
+**Discrepancy found:** Earlier audit report (COMPREHENSIVE_AUDIT.md) listed the share-link creation route as `/api/share/properties/:id/share`, but every earlier report documented it as `/api/properties/:id/share`.
+
+**Evidence gathered:**
+
+```
+$ grep -rn "share" src/routes/share.js
+  router.post('/properties/:id/share', verifyUser, controller.createLink);
+  router.post('/properties/:id/share/:linkId/deactivate', verifyUser, controller.deactivateLink);
+  router.get('/properties/:id/links', verifyUser, controller.listForProperty);
+  router.get('/public/property-view/:token', controller.getPublicPropertyView);
+  router.post('/public/property-view/:token/visitor', controller.registerPublicVisitor);
+
+$ grep -rn "shareRoutes" src/index.js
+  Line 25:  const shareRoutes = require("./routes/share");
+  Line 188: app.use("/api", shareRoutes);
+```
+
+**Actual current working paths (combining mount `/api` + route definitions):**
+
+| Intended Route | Defined In | Mounted At | Actual Full Path |
+|---------------|-----------|-----------|------------------|
+| Create share link | `/properties/:id/share` | `/api` | `/api/properties/:id/share` ✅ |
+| Deactivate link | `/properties/:id/share/:linkId/deactivate` | `/api` | `/api/properties/:id/share/:linkId/deactivate` ✅ |
+| List links | `/properties/:id/links` | `/api` | `/api/properties/:id/links` ✅ |
+| Public property view | `/public/property-view/:token` | `/api` | `/api/public/property-view/:token` (public) ✅ |
+| Register visitor | `/public/property-view/:token/visitor` | `/api` | `/api/public/property-view/:token/visitor` (public) ✅ |
+
+**Conclusion:** The audit report's description `/api/share/properties/:id/share` was **incorrect**. The real path is `/api/properties/:id/share` — exactly as the original feature design specified and what the frontend will expect. **No code change needed.**
+
+**Documentation fix applied:** Updated `COMPREHENSIVE_AUDIT.md` line 158 from `/api/share/properties/:id/share` → `/api/properties/:id/share`. Committed as `16d0b33`.
+
+**Re-ran share/chat tests after doc fix:**
+
+```
+Test Suites: 18 passed, 18 total
+Tests:       208 passed, 208 total
+```
+(No code changed, so no behavioral change — tests confirm nothing broke.)
+
+### PART 2 — Final Full Test Suite
+
+```
+$ npx jest --forceExit --detectOpenHandles
+
+Test Suites: 18 passed, 18 total
+Tests:       208 passed, 208 total
+Time:        10.985 s
+```
+
+(Console `error`/`warn` lines are from intentional error-case tests — non-existent users hitting DB error paths. All assertions pass.)
+
+### PART 3 — Merge dev → main
+
+```bash
+git checkout dev; git status           # clean, all committed
+git checkout main; git pull origin main # already up to date
+git merge dev --no-ff                   # SUCCESS
+git push origin main
+```
+
+**Merge commit on main:** `10c4bed chore: merge dev into main — backend complete`
+
+96 files changed, 15388 insertions, 2749 deletions. Includes full feature set:
+- Postgres migration (Firebase RTDB → Neon)
+- Security hardening (Helmet, rate limiting, TOTP MFA, ownership isolation)
+- Activity log, community hub, property sharing + visitor chat
+- Super-admin system with self-hosted TOTP
+- Simplified role system (owner/agent)
+- Lead pipeline, invoices, approvals, property custom fields
+- Advanced search, EMI calculator, analytics, health endpoint
+
+### PART 4 — Production Deployment
+
+- Vercel CLI not available in this environment. Deployment is automatic on push to `main` (per `vercel.json` build config: `server.js` → `@vercel/node`).
+- **Action for project owner:** Confirm green checkmark in Vercel dashboard for the latest `main` deploy.
+- **Smoke test (blocked locally):** Server not running on localhost (`curl http://localhost:5000/api/clients` → connection refused). Production URL unknown in this context. Once Vercel deploy completes, project owner should run:
+  ```
+  curl -I https://<production-url>/api/clients
+  ```
+  Expected: `401 Unauthorized` (proves deployed app is live and auth middleware is working). A `200` without a token would indicate a security regression.
+
+### FINAL STATUS
+
+| Item | Status |
+|------|--------|
+| Route path verified | ✅ `/api/properties/:id/share` confirmed correct |
+| Final test count | ✅ 208 / 208 passing |
+| Merge to main | ✅ `10c4bed` pushed |
+| Deployment | ⏳ Awaiting Vercel auto-deploy + owner confirmation |
+
+**Backend work is closed.** Do not start new backend feature work without a separately scoped task. Frontend work begins next.
+
+---
