@@ -15,13 +15,13 @@ before starting any task.
    understand it without explanation.
 3. **Never mark something "done" without real verification evidence** — actual
    command output (curl responses, test results, row counts), not a description of
-   what should happen. Log every task's start and result in `REPORT.md` at the project
-   root, appending to the existing file, not overwriting it.
+    what should happen. Log every task's start and result in `docs/archive/REPORT.md`,
+    appending to the existing file, not overwriting it.
 4. **Commit messages matter** — this repo is meant to look professional to anyone
    browsing it. Format: `type(scope): summary` + a 2-4 line body explaining why, not
    just what. Types: feat, fix, refactor, chore, docs, test, security.
 5. **Scope discipline** — if a task is scoped to X, do X. If you notice something else
-   worth fixing along the way, note it in REPORT.md as a follow-up, don't fix it
+    worth fixing along the way, note it in docs/archive/REPORT.md as a follow-up, don't fix it
    inline in the same change. Mixing concerns makes it impossible to isolate what
    broke if something regresses.
 6. **Payments stay disabled** — `PAYMENTS_ENABLED=false` in both frontend and backend
@@ -58,7 +58,18 @@ before starting any task.
   of the last verification pass), specifically proving ownership isolation. Run
   `npm test` before considering any service-layer change complete.
 
-## KNOWN OPEN ITEMS (check REPORT.md for full detail before assuming these are stale)
+## DOCUMENTATION LAYOUT
+
+- `AGENTS.md` (this file) — read every session, kept at repo root.
+- `FRONTEND_MIGRATION_GUIDE.md` — at repo root; read before any frontend-facing
+  backend work (documents the old `/api/data` → per-entity REST migration).
+- `docs/ENVKEYS.md` — full env-var reference with where-to-find-each-key steps.
+- `docs/PAYMENTS_ENABLEMENT_GUIDE.md` — steps to safely enable payments (gated off).
+- `docs/archive/` — historical session reports (REPORT.md full log,
+  COMPREHENSIVE_AUDIT.md, MASTER_FINAL_CHECK.md, BACKEND_AUDIT_1.md). Preserved for
+  record; NOT loaded by default. Consult when investigating past decisions/regressions.
+
+## KNOWN OPEN ITEMS (check docs/archive/REPORT.md for full detail before assuming these are stale)
 
 - Dual-write to Firebase RTDB still happens in `authService.js` and
   `paymentService.js` (not the 5 entity services) — flagged for eventual removal
@@ -75,9 +86,9 @@ before starting any task.
 ## WORKFLOW FOR EVERY TASK
 
 1. Read the specific task instructions given to you.
-2. Check REPORT.md and this file for relevant existing context before starting —
-   don't rebuild something that already exists.
-3. Log what you're about to do in REPORT.md before starting.
+2. Check docs/archive/REPORT.md and this file for relevant existing context before
+   starting — don't rebuild something that already exists.
+3. Log what you're about to do in docs/archive/REPORT.md before starting.
 4. Do the work, scoped exactly to what was asked.
 5. Verify with real command output — paste it into REPORT.md, not a summary.
 6. Commit to `dev` with a properly formatted message.
