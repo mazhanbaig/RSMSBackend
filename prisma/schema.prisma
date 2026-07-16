@@ -19,7 +19,8 @@ model Organization {
   name      String
   createdAt DateTime @default(now())
 
-  users User[]
+  users          User[]
+  communityPosts CommunityPost[]
 }
 
 // ─── User ───────────────────────────────────────────────────────────
@@ -36,6 +37,10 @@ model User {
   photoURL           String?
   provider           String?
   createdAt          DateTime     @default(now())
+  role               String       @default("agent") // "owner" or "agent" — viewer removed
+  isSuperAdmin       Boolean      @default(false)
+  totpSecret         String?
+  totpEnabled        Boolean      @default(false)
 
   clients      Client[]
   owners       Owner[]
@@ -46,6 +51,49 @@ model User {
 
   @@index([orgId])
   @@index([uid])
+
+  adminAuditLogs     AdminAuditLog[]
+  userSuspensions    UserSuspension[]
+  approvalRequests   ApprovalRequest[] @relation("requester")
+  reviewedApprovals  ApprovalRequest[] @relation("reviewer")
+  invoices           Invoice[]
+  activityLogs       ActivityLog[]
+  communityPosts     CommunityPost[]
+  communityComments  CommunityComment[]
+  propertyShareLinks PropertyShareLink[]
+  chatThreads        ChatThread[]
+}
+
+// ─── Admin Audit Log ────────────────────────────────────────────────
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  adminUserId String
+  admin       User     @relation(fields: [adminUserId], references: [id])
+  action      String
+  targetType  String?
+  targetId    String?
+  details     Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([adminUserId])
+  @@index([createdAt])
+}
+
+// ─── User Suspension ────────────────────────────────────────────────
+
+model UserSuspension {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  reason      String
+  suspendedBy String
+  suspendedAt DateTime  @default(now())
+  liftedAt    DateTime?
+  liftedBy    String?
+
+  @@index([userId])
 }
 
 // ─── Client ─────────────────────────────────────────────────────────
@@ -61,8 +109,9 @@ model Client {
   budgetMin   Decimal? @db.Decimal(12, 2)
   budgetMax   Decimal? @db.Decimal(12, 2)
   preferences String?
-  notes       String?
-  status      String?
+  notes         String?
+  status        String?
+  pipelineStage String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -70,9 +119,13 @@ model Client {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  properties Property[]
-  events     Event[]
-  tasks      Task[]
+  properties     Property[]
+  events         Event[]
+  tasks          Task[]
+  invoices       Invoice[]
+  approvalSender    ApprovalRequest[]   @relation("sender")
+  approvalTarget    ApprovalRequest[]   @relation("target")
+  convertedVisitors PropertyVisitor[]
 
   @@index([uid])
   @@index([orgId])
@@ -111,12 +164,18 @@ model Property {
   uid   String
   orgId String
 
-  title       String
-  description String?
-  price       Decimal? @db.Decimal(12, 2)
-  status      String?
-  address     String?
-  images      String?
+  title        String
+  description  String?
+  price        Decimal? @db.Decimal(12, 2)
+  status       String?
+  address      String?
+  city         String?
+  propertyType String?
+  bedrooms     Int?
+  bathrooms    Int?
+  featured     Boolean  @default(false)
+  images       String?
+  customFields Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -129,14 +188,19 @@ model Property {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  events Event[]
-  tasks  Task[]
+  events     Event[]
+  tasks      Task[]
+  invoices   Invoice[]
+  shareLinks PropertyShareLink[]
 
   @@index([uid])
   @@index([orgId])
   @@index([userId])
   @@index([ownerId])
   @@index([clientId])
+  @@index([city])
+  @@index([price])
+  @@index([featured])
 }
 
 // ─── Event ──────────────────────────────────────────────────────────
@@ -219,4 +283,175 @@ model Transaction {
   @@index([userId])
   @@index([txnRef])
   @@index([status])
+}
+
+// ─── Invoice ─────────────────────────────────────────────────────────
+
+model Invoice {
+  id        String   @id @default(cuid())
+  invoiceNo String   @unique
+  title     String
+  amount    Decimal  @db.Decimal(12, 2)
+  commission Decimal @db.Decimal(12, 2)
+  tax       Decimal  @db.Decimal(12, 2) @default(0)
+  total     Decimal  @db.Decimal(12, 2)
+  status    String   @default("draft")
+  dueDate   DateTime?
+  paidAt    DateTime?
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId String?
+  client   Client?  @relation(fields: [clientId], references: [id])
+  propertyId String?
+  property Property? @relation(fields: [propertyId], references: [id])
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([propertyId])
+  @@index([status])
+}
+
+// ─── Approval Request ────────────────────────────────────────────────
+
+model ApprovalRequest {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  targetType  String
+  targetId    String?
+  action      String
+  payload     Json?
+  status      String   @default("pending")
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  requesterId String
+  requester   User   @relation("requester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  reviewerId String?
+  reviewer   User?   @relation("reviewer", fields: [reviewerId], references: [id])
+
+  clientSender  Client? @relation("sender",   fields: [senderClientId], references: [id])
+  senderClientId String?
+
+  clientTarget  Client? @relation("target",   fields: [targetClientId], references: [id])
+  targetClientId String?
+
+  @@index([requesterId])
+  @@index([reviewerId])
+  @@index([status])
+}
+
+// ─── Activity Log ──────────────────────────────────────────────────
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ─── Community Post ────────────────────────────────────────────────
+
+model CommunityPost {
+  id        String   @id @default(cuid())
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  scope     String
+  orgId     String?
+  organization Organization? @relation(fields: [orgId], references: [id])
+  title     String
+  content   String
+  hidden    Boolean  @default(false)
+  hiddenBy  String?
+  hiddenReason String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comments CommunityComment[]
+
+  @@index([scope])
+  @@index([orgId])
+}
+
+// ─── Community Comment ─────────────────────────────────────────────
+
+model CommunityComment {
+  id        String   @id @default(cuid())
+  postId    String
+  post      CommunityPost @relation(fields: [postId], references: [id])
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  content   String
+  hidden    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([postId])
+}
+
+// ─── Property Share Link ──────────────────────────────────────────
+
+model PropertyShareLink {
+  id          String   @id @default(cuid())
+  token       String   @unique @default(cuid())
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id])
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  active      Boolean  @default(true)
+  viewCount   Int      @default(0)
+  sharedWithName String?
+  createdAt   DateTime @default(now())
+
+  visitors  PropertyVisitor[]
+  chatThreads ChatThread[]
+
+  @@index([propertyId])
+}
+
+// ─── Property Visitor ─────────────────────────────────────────────
+
+model PropertyVisitor {
+  id           String   @id @default(cuid())
+  shareLinkId  String
+  shareLink    PropertyShareLink @relation(fields: [shareLinkId], references: [id])
+  name         String
+  phone        String
+  convertedToClientId String?
+  convertedToClient   Client? @relation(fields: [convertedToClientId], references: [id])
+  createdAt    DateTime @default(now())
+
+  chatThread ChatThread?
+
+  @@index([shareLinkId])
+}
+
+// ─── Chat Thread ──────────────────────────────────────────────────
+
+model ChatThread {
+  id          String   @id @default(cuid())
+  shareLinkId String
+  shareLink   PropertyShareLink @relation(fields: [shareLinkId], references: [id])
+  visitorId   String   @unique
+  visitor     PropertyVisitor @relation(fields: [visitorId], references: [id])
+  agentUserId String
+  agent       User     @relation(fields: [agentUserId], references: [id])
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+
+  @@index([agentUserId])
 }

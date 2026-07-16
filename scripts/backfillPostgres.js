@@ -18,7 +18,11 @@ const { Pool } = require('pg');
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 30000 });
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    connectionTimeoutMillis: 60000,
+    ssl: { rejectUnauthorized: false },
+});
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
@@ -233,15 +237,21 @@ async function backfillTransactions() {
 // ─── Field Mappers ───────────────────────────────────────────────────
 
 function mapClient(record, recordId, prismaUser) {
+    // Build name from firstName + lastName (Firebase stores them separately)
+    const firstName = str(record.firstName) || '';
+    const lastName = str(record.lastName) || '';
+    const fullName = (firstName + ' ' + lastName).trim();
+
     return {
+        id: recordId,
         uid: prismaUser.uid,
         orgId: prismaUser.uid,
-        name: requiredStr(record.name, 'Unnamed Client'),
+        name: requiredStr(fullName || record.name, 'Unnamed Client'),
         email: str(record.email),
         phone: str(record.phone),
-        budgetMin: toDecimal(record.budgetMin),
-        budgetMax: toDecimal(record.budgetMax),
-        preferences: str(record.preferences),
+        budgetMin: toDecimal(record.minBudget || record.budgetMin),
+        budgetMax: toDecimal(record.maxBudget || record.budgetMax),
+        preferences: str(record.preferredLocations || record.preferences),
         notes: str(record.notes),
         status: str(record.status),
         createdAt: toDate(record.createdAt) || new Date(),
@@ -251,6 +261,7 @@ function mapClient(record, recordId, prismaUser) {
 
 function mapOwner(record, recordId, prismaUser) {
     return {
+        id: recordId,
         uid: prismaUser.uid,
         orgId: prismaUser.uid,
         name: requiredStr(record.name, 'Unnamed Owner'),
@@ -263,14 +274,20 @@ function mapOwner(record, recordId, prismaUser) {
 }
 
 function mapProperty(record, recordId, prismaUser) {
+    // Build address from location + city if available
+    const locationParts = [str(record.location), str(record.city)].filter(Boolean);
+
     return {
+        id: recordId,
         uid: prismaUser.uid,
         orgId: prismaUser.uid,
         title: requiredStr(record.title, 'Unnamed Property'),
         description: str(record.description),
         price: toDecimal(record.price),
-        status: str(record.status),
+        status: str(record.propertyStatus || record.status),
+        address: locationParts.length > 0 ? locationParts.join(', ') : null,
         images: record.images ? (typeof record.images === 'string' ? record.images : JSON.stringify(record.images)) : null,
+        ownerId: str(record.ownerId) || null,
         createdAt: toDate(record.createdAt) || new Date(),
         userId: prismaUser.id,
     };
@@ -278,11 +295,14 @@ function mapProperty(record, recordId, prismaUser) {
 
 function mapEvent(record, recordId, prismaUser) {
     return {
+        id: recordId,
         uid: prismaUser.uid,
         orgId: prismaUser.uid,
         title: requiredStr(record.title, 'Unnamed Event'),
         description: str(record.description),
         startTime: toDate(record.date || record.startTime) || new Date(),
+        clientId: str(record.clientId) || null,
+        propertyId: str(record.propertyId) || null,
         createdAt: toDate(record.createdAt) || new Date(),
         userId: prismaUser.id,
     };
@@ -290,6 +310,7 @@ function mapEvent(record, recordId, prismaUser) {
 
 function mapTask(record, recordId, prismaUser) {
     return {
+        id: recordId,
         uid: prismaUser.uid,
         orgId: prismaUser.uid,
         title: requiredStr(record.title, 'Unnamed Task'),
@@ -297,6 +318,8 @@ function mapTask(record, recordId, prismaUser) {
         priority: requiredStr(record.priority, 'medium'),
         completed: record.completed === true || record.completed === 'true',
         dueDate: toDate(record.dueDate),
+        clientId: str(record.clientId) || null,
+        propertyId: str(record.propertyId) || null,
         createdAt: toDate(record.createdAt) || new Date(),
         userId: prismaUser.id,
     };

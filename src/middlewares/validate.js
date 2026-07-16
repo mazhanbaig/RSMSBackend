@@ -200,12 +200,46 @@ const validatePaymentData = [
     handleValidationErrors,
 ];
 
+const validateInvoiceData = [
+    body("title")
+        .exists().withMessage("Missing 'title'")
+        .isString().withMessage("Title must be a string")
+        .trim()
+        .notEmpty().withMessage("Title cannot be empty"),
+    body("amount")
+        .exists().withMessage("Missing 'amount'")
+        .isFloat({ min: 0 }).withMessage("Amount must be a positive number"),
+    body("commission")
+        .optional()
+        .isFloat({ min: 0 }).withMessage("Commission must be a positive number"),
+    body("tax")
+        .optional()
+        .isFloat({ min: 0 }).withMessage("Tax must be a positive number"),
+    body("status")
+        .optional()
+        .isIn(["draft", "sent", "paid", "cancelled"]).withMessage("Status must be one of: draft, sent, paid, cancelled"),
+    body("dueDate")
+        .optional({ values: "null" })
+        .isISO8601().withMessage("dueDate must be a valid ISO 8601 date"),
+    body("clientId")
+        .optional()
+        .isString().withMessage("clientId must be a string"),
+    body("propertyId")
+        .optional()
+        .isString().withMessage("propertyId must be a string"),
+    body("notes")
+        .optional()
+        .isString().withMessage("Notes must be a string"),
+    handleValidationErrors,
+];
+
 module.exports = {
     validateClientData,
     validateOwnerData,
     validatePropertyData,
     validateEventData,
     validateTaskData,
+    validateInvoiceData,
     validateImageUpload,
     validateDeleteImage,
     validateAuthData,

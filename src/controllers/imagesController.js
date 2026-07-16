@@ -19,7 +19,7 @@ async function addImages(req, res) {
 
         res.status(201).json(ResponseObj(true, "Uploaded successfully", urls, null));
     } catch (error) {
-        console.log(error);
+        console.error('imagesController.addImages:', error);
         res.status(500).json(ResponseObj(false, "Upload failed", null, error.message));
     }
 }
@@ -43,7 +43,7 @@ async function deleteImage(req, res) {
             ResponseObj(true, "Image deleted successfully", result, null)
         );
     } catch (error) {
-        console.log(error);
+        console.error('imagesController.deleteImage:', error);
         res.status(500).json(
             ResponseObj(false, "Delete failed", null, error.message)
         );

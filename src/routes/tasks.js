@@ -4,10 +4,12 @@ const verifyUser = require('../middlewares/authMiddleware');
 const { validateTaskData } = require('../middlewares/validate');
 const controller = require('../controllers/taskController');
 
-router.get('/', verifyUser, controller.list);
-router.get('/:id', verifyUser, controller.getOne);
-router.post('/', verifyUser, validateTaskData, controller.create);
-router.put('/:id', verifyUser, validateTaskData, controller.update);
-router.delete('/:id', verifyUser, controller.remove);
+router.use(verifyUser);
+
+router.get('/', controller.list);
+router.get('/:id', controller.getOne);
+router.post('/', validateTaskData, controller.create);
+router.put('/:id', validateTaskData, controller.update);
+router.delete('/:id', controller.remove);
 
 module.exports = router;

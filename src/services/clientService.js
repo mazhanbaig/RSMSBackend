@@ -1,10 +1,11 @@
 const { getPrisma, resolveUserId } = require('../config/database');
+const { logActivity } = require('./activityService');
 
-async function findAllByUser(uid) {
+async function findAllByUser(uid, filters = {}) {
     const prisma = getPrisma();
     const userId = await resolveUserId(uid);
     if (!userId) return { error: 'User not found', status: 404 };
-    const records = await prisma.client.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } });
+    const records = await prisma.client.findMany({ where: { userId, ...filters }, orderBy: { createdAt: 'desc' } });
     return { data: records };
 }
 
@@ -33,9 +34,11 @@ async function create(uid, data) {
             preferences: data.preferences || null,
             notes: data.notes || null,
             status: data.status || null,
+            pipelineStage: data.pipelineStage || null,
             userId,
         },
     });
+    await logActivity(uid, 'created', 'Client', record.id, null).catch(() => {});
     return { data: record };
 }
 
@@ -58,8 +61,26 @@ async function update(uid, id, data) {
             preferences: data.preferences !== undefined ? data.preferences : existing.preferences,
             notes: data.notes !== undefined ? data.notes : existing.notes,
             status: data.status !== undefined ? data.status : existing.status,
+            pipelineStage: data.pipelineStage !== undefined ? data.pipelineStage : existing.pipelineStage,
         },
     });
+    await logActivity(uid, 'updated', 'Client', id, { from: existing.pipelineStage || existing.status, to: data.pipelineStage || data.status }).catch(() => {});
+    return { data: record };
+}
+
+async function updatePipelineStage(uid, id, pipelineStage) {
+    const prisma = getPrisma();
+    const userId = await resolveUserId(uid);
+    if (!userId) return { error: 'User not found', status: 404 };
+
+    const existing = await prisma.client.findFirst({ where: { id, userId } });
+    if (!existing) return { error: 'Client not found', status: 404 };
+
+    const record = await prisma.client.update({
+        where: { id },
+        data: { pipelineStage },
+    });
+    await logActivity(uid, 'updated', 'Client', id, { from: existing.pipelineStage, to: pipelineStage }).catch(() => {});
     return { data: record };
 }
 
@@ -72,7 +93,8 @@ async function remove(uid, id) {
     if (!existing) return { error: 'Client not found', status: 404 };
 
     await prisma.client.delete({ where: { id } });
+    await logActivity(uid, 'deleted', 'Client', id, null).catch(() => {});
     return { success: true };
 }
 
-module.exports = { findAllByUser, findById, create, update, remove };
+module.exports = { findAllByUser, findById, create, update, remove, updatePipelineStage };
