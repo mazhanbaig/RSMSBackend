@@ -2,25 +2,9 @@ require('dotenv').config();
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
-const Sentry = require("@sentry/node");
 const pino = require('pino-http')();
 const { Redis } = require("@upstash/redis");
 const { Ratelimit } = require("@upstash/ratelimit");
-
-// ─── Sentry Initialization ───────────────────────────────────────────
-// Enable Sentry only when SENTRY_DSN is set (production/staging).
-// In development, all lines are no-ops and won't affect performance.
-if (process.env.SENTRY_DSN) {
-    Sentry.init({
-        dsn: process.env.SENTRY_DSN,
-        environment: process.env.NODE_ENV || 'development',
-        tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0.1'),
-        maxBreadcrumbs: 50,
-    });
-    console.log('Sentry initialized');
-} else {
-    console.warn('Sentry: SENTRY_DSN not set — error monitoring disabled');
-}
 
 const paymentRoutes = require("./routes/payment");
 const paymentWebhookRoutes = require("./routes/paymentWebhook");
@@ -203,12 +187,8 @@ app.use((err, req, res, next) => {
     next(err);
 });
 
-// ─── Sentry Error Handler (must be last) ─────────────────────────────
-// Captures unhandled errors and sends them to Sentry when DSN is configured.
+// ─── Global Error Handler ────────────────────────────────────────────
 app.use((err, req, res, _next) => {
-    if (process.env.SENTRY_DSN) {
-        Sentry.captureException(err);
-    }
     console.error('Unhandled error:', err);
     res.status(500).json({
         success: false,

@@ -1,4 +1,3 @@
-const Sentry = require('@sentry/node');
 const { getPrisma } = require('../config/database');
 const adminService = require('../services/adminService');
 const mfaService = require('../services/mfaService');
@@ -31,7 +30,6 @@ async function checkSuperAdminOnly(req, res, next) {
         req.adminUserId = adminUserId;
         next();
     } catch (err) {
-        Sentry.captureException(err);
         console.error('requireSuperAdmin error:', err);
         res.status(500).json({
             success: false,
@@ -122,7 +120,6 @@ async function requireSuperAdmin(req, res, next) {
         req.adminUserId = adminUserId;
         next();
     } catch (err) {
-        Sentry.captureException(err);
         console.error('requireSuperAdmin error:', err);
         res.status(500).json({
             success: false,

@@ -1,4 +1,3 @@
-const Sentry = require('@sentry/node');
 const ResponseObj = require("../utils/ResponseObj");
 const authService = require("../services/authService");
 
@@ -15,7 +14,6 @@ async function login(req, res) {
             ResponseObj(true, "User saved successfully", null, null)
         );
     } catch (err) {
-        Sentry.captureException(err);
         res.status(500).json(
             ResponseObj(false, "Failed to save user", null, err.message)
         );
@@ -35,7 +33,6 @@ async function logout(req, res) {
             ResponseObj(true, "Logged out from all devices", null, null)
         );
     } catch (err) {
-        Sentry.captureException(err);
         res.status(500).json(
             ResponseObj(false, "Logout failed", null, err.message)
         );
@@ -55,7 +52,6 @@ async function deleteAccount(req, res) {
             ResponseObj(true, "Account deleted successfully", null, null)
         );
     } catch (err) {
-        Sentry.captureException(err);
         console.error('deleteAccount error:', err);
         res.status(500).json(
             ResponseObj(false, "Failed to delete account", null, err.message)

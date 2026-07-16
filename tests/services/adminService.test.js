@@ -184,7 +184,6 @@ describe('adminService', () => {
             const result = await adminService.getSystemHealth();
             expect(result.data.database).toBe('connected');
             expect(result.data).toHaveProperty('upstashRedis');
-            expect(result.data).toHaveProperty('sentry');
             expect(result.data).toHaveProperty('paymentsEnabled');
             expect(result.data).toHaveProperty('timestamp');
         });

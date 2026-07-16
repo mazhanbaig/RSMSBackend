@@ -1,4 +1,3 @@
-const Sentry = require('@sentry/node');
 const ResponseObj = require('../utils/ResponseObj');
 const { calculateInstallmentPlan } = require('../services/calculatorService');
 
@@ -28,7 +27,6 @@ async function installmentCalculator(req, res) {
 
         res.status(200).json(ResponseObj(true, 'Installment plan calculated', result));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('toolsController.installmentCalculator:', err);
         res.status(500).json(ResponseObj(false, 'Failed to calculate installment plan', null, err.message));
     }

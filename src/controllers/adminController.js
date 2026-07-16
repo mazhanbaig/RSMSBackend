@@ -1,4 +1,3 @@
-const Sentry = require('@sentry/node');
 const { getPrisma } = require('../config/database');
 const ResponseObj = require('../utils/ResponseObj');
 const adminService = require('../services/adminService');
@@ -12,7 +11,6 @@ async function listUsers(req, res) {
         await adminService.logAdminAction(req.adminUserId, 'list_users', null, null, { page, limit }, req.ip);
         res.status(200).json(ResponseObj(true, 'Users fetched', result));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.listUsers:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch users', null, err.message));
     }
@@ -25,7 +23,6 @@ async function getUserDetail(req, res) {
         await adminService.logAdminAction(req.adminUserId, 'viewed_user', 'User', req.params.uid, null, req.ip);
         res.status(200).json(ResponseObj(true, 'User detail fetched', result.data));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.getUserDetail:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch user detail', null, err.message));
     }
@@ -39,7 +36,6 @@ async function listOrganizations(req, res) {
         await adminService.logAdminAction(req.adminUserId, 'list_organizations', null, null, { page, limit }, req.ip);
         res.status(200).json(ResponseObj(true, 'Organizations fetched', result));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.listOrganizations:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch organizations', null, err.message));
     }
@@ -51,7 +47,6 @@ async function securityOverview(req, res) {
         await adminService.logAdminAction(req.adminUserId, 'viewed_security_dashboard', null, null, null, req.ip);
         res.status(200).json(ResponseObj(true, 'Security overview fetched', result.data));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.securityOverview:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch security overview', null, err.message));
     }
@@ -71,7 +66,6 @@ async function auditLog(req, res) {
         await adminService.logAdminAction(req.adminUserId, 'viewed_audit_log', null, null, { page, limit, filters }, req.ip);
         res.status(200).json(ResponseObj(true, 'Audit log fetched', result));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.auditLog:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch audit log', null, err.message));
     }
@@ -83,7 +77,6 @@ async function vulnerabilities(req, res) {
         await adminService.logAdminAction(req.adminUserId, 'viewed_vulnerabilities', null, null, null, req.ip);
         res.status(200).json(ResponseObj(true, 'Vulnerability summary fetched', result.data));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.vulnerabilities:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch vulnerabilities', null, err.message));
     }
@@ -99,7 +92,6 @@ async function suspendUser(req, res) {
         if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
         res.status(200).json(ResponseObj(true, 'User suspended'));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.suspendUser:', err);
         res.status(500).json(ResponseObj(false, 'Failed to suspend user', null, err.message));
     }
@@ -111,7 +103,6 @@ async function unsuspendUser(req, res) {
         if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
         res.status(200).json(ResponseObj(true, 'User unsuspended'));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.unsuspendUser:', err);
         res.status(500).json(ResponseObj(false, 'Failed to unsuspend user', null, err.message));
     }
@@ -123,7 +114,6 @@ async function systemHealth(req, res) {
         await adminService.logAdminAction(req.adminUserId, 'viewed_system_health', null, null, null, req.ip);
         res.status(200).json(ResponseObj(true, 'System health fetched', result.data));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.systemHealth:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch system health', null, err.message));
     }
@@ -141,7 +131,6 @@ async function mfaStatus(req, res) {
             ...result.data,
         }));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.mfaStatus:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch MFA status', null, err.message));
     }
@@ -156,7 +145,6 @@ async function enrollMfa(req, res) {
         await adminService.logAdminAction(req.adminUserId, 'mfa_enrollment_started', null, null, null, req.ip);
         res.status(200).json(ResponseObj(true, 'TOTP secret generated', result.data));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.enrollMfa:', err);
         res.status(500).json(ResponseObj(false, 'Failed to start MFA enrollment', null, err.message));
     }
@@ -175,7 +163,6 @@ async function verifyMfaEnrollment(req, res) {
         await adminService.logAdminAction(req.adminUserId, 'mfa_enrollment_completed', null, null, null, req.ip);
         res.status(200).json(ResponseObj(true, 'MFA enrollment verified', result.data));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.verifyMfaEnrollment:', err);
         res.status(500).json(ResponseObj(false, 'Failed to verify MFA enrollment', null, err.message));
     }
@@ -189,7 +176,6 @@ async function mfaSetupStatus(req, res) {
         }
         res.status(200).json(ResponseObj(true, 'TOTP setup status fetched', result.data));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.mfaSetupStatus:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch TOTP setup status', null, err.message));
     }
@@ -206,7 +192,6 @@ async function hidePost(req, res) {
         await adminService.logAdminAction(req.adminUserId, 'hide_community_post', 'CommunityPost', req.params.id, { reason }, req.ip);
         res.status(200).json(ResponseObj(true, 'Post hidden'));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.hidePost:', err);
         res.status(500).json(ResponseObj(false, 'Failed to hide post', null, err.message));
     }
@@ -219,7 +204,6 @@ async function unhidePost(req, res) {
         await adminService.logAdminAction(req.adminUserId, 'unhide_community_post', 'CommunityPost', req.params.id, null, req.ip);
         res.status(200).json(ResponseObj(true, 'Post unhidden'));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.unhidePost:', err);
         res.status(500).json(ResponseObj(false, 'Failed to unhide post', null, err.message));
     }
@@ -239,7 +223,6 @@ async function listAllPosts(req, res) {
         await adminService.logAdminAction(req.adminUserId, 'list_all_community_posts', null, null, { page, limit, filters }, req.ip);
         res.status(200).json(ResponseObj(true, 'Posts fetched', result));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.listAllPosts:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch posts', null, err.message));
     }
@@ -252,7 +235,6 @@ async function propertySharesOverview(req, res) {
         await adminService.logAdminAction(req.adminUserId, 'viewed_property_shares_overview', null, null, null, req.ip);
         res.status(200).json(ResponseObj(true, 'Property shares overview fetched', result.data));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.propertySharesOverview:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch property shares overview', null, err.message));
     }
@@ -265,7 +247,6 @@ async function chatThreadsOverview(req, res) {
         await adminService.logAdminAction(req.adminUserId, 'viewed_chat_threads_overview', null, null, null, req.ip);
         res.status(200).json(ResponseObj(true, 'Chat threads overview fetched', result.data));
     } catch (err) {
-        Sentry.captureException(err);
         console.error('adminController.chatThreadsOverview:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch chat threads overview', null, err.message));
     }

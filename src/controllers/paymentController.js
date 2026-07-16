@@ -1,4 +1,3 @@
-const Sentry = require('@sentry/node');
 const ResponseObj = require("../utils/ResponseObj");
 const paymentService = require("../services/paymentService");
 
@@ -30,7 +29,6 @@ async function createPayment(req, res) {
 
         res.json(ResponseObj(true, "Payment data created", { ...clientData, pp_SecureHash: secureHash }, null));
     } catch (err) {
-        Sentry.captureException(err);
         console.error(err);
         res.status(500).json(ResponseObj(false, "Payment creation failed", null, err.message));
     }

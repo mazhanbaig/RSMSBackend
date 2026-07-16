@@ -277,7 +277,6 @@ async function getSystemHealth() {
         data: {
             database: dbOk ? 'connected' : 'disconnected',
             upstashRedis: process.env.UPSTASH_REDIS_REST_URL ? 'configured' : 'not configured',
-            sentry: process.env.SENTRY_DSN ? 'configured' : 'not configured',
             paymentsEnabled: process.env.PAYMENTS_ENABLED === 'true',
             gitCommit: process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || null,
             timestamp: new Date().toISOString(),
