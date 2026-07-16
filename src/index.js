@@ -144,6 +144,20 @@ if (process.env.LIVE_TEST === 'true' && process.env.NODE_ENV !== 'production') {
 
 app.use(globalLimiter);
 
+// ─── Unauthenticated Health Check (before route mountings) ────────────
+app.get("/api/health", (req, res) => {
+    res.json({
+        success: true,
+        message: "OK",
+        data: {
+            timestamp: new Date().toISOString(),
+            uptime: process.uptime(),
+            nodeVersion: process.version,
+            environment: process.env.NODE_ENV || 'development',
+        },
+    });
+});
+
 // Stricter limiter for auth and data mutation endpoints
 app.use("/api/auth", strictLimiter);
 app.use("/api/clients", strictLimiter);
