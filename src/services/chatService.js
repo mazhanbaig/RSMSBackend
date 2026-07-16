@@ -83,6 +83,7 @@ async function convertToClient(uid, threadId) {
             name: visitor.name,
             phone: visitor.phone,
             pipelineStage: 'lead',
+            userId,
         },
     });
 

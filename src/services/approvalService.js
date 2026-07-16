@@ -76,8 +76,20 @@ async function review(uid, id, reviewData) {
     const userId = await resolveUserId(uid);
     if (!userId) return { error: 'User not found', status: 404 };
 
-    const existing = await prisma.approvalRequest.findUnique({ where: { id } });
+    const reviewerUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { orgId: true },
+    });
+    if (!reviewerUser) return { error: 'User not found', status: 404 };
+
+    const existing = await prisma.approvalRequest.findFirst({
+        where: { id },
+        include: { requester: { select: { orgId: true } } },
+    });
     if (!existing) return { error: 'Approval request not found', status: 404 };
+    if (existing.requester?.orgId !== reviewerUser.orgId) {
+        return { error: 'Approval request not found', status: 404 };
+    }
 
     if (existing.reviewerId) {
         return { error: 'This request has already been reviewed', status: 400 };

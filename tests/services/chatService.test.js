@@ -250,6 +250,7 @@ describe('chatService', () => {
           name: 'John Doe',
           phone: '+923001234567',
           pipelineStage: 'lead',
+          userId: userIdA,
         },
       });
       expect(mockPrisma.propertyVisitor.update).toHaveBeenCalledWith({

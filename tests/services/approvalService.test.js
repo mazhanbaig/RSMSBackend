@@ -47,6 +47,9 @@ describe('approvalService', () => {
         update: jest.fn(),
         delete: jest.fn(),
       },
+      user: {
+        findUnique: jest.fn(),
+      },
     };
     getPrisma.mockReturnValue(mockPrisma);
   });
@@ -168,9 +171,18 @@ describe('approvalService', () => {
   });
 
   describe('review', () => {
-    test('assigns reviewer and updates status on first review', async () => {
+    const mockApprovalWithRequester = {
+      ...mockApproval,
+      requester: { orgId: 'org-a' },
+    };
+
+    beforeEach(() => {
       resolveUserId.mockResolvedValue(userIdB);
-      mockPrisma.approvalRequest.findUnique.mockResolvedValue(mockApproval);
+      mockPrisma.user.findUnique.mockResolvedValue({ orgId: 'org-a' });
+    });
+
+    test('assigns reviewer and updates status on first review', async () => {
+      mockPrisma.approvalRequest.findFirst.mockResolvedValue(mockApprovalWithRequester);
       mockPrisma.approvalRequest.update.mockResolvedValue({
         ...mockApproval,
         reviewerId: userIdB,
@@ -180,6 +192,10 @@ describe('approvalService', () => {
 
       const result = await approvalService.review(uidB, approvalId, { status: 'approved', notes: 'Looks good' });
 
+      expect(mockPrisma.approvalRequest.findFirst).toHaveBeenCalledWith({
+        where: { id: approvalId },
+        include: { requester: { select: { orgId: true } } },
+      });
       expect(mockPrisma.approvalRequest.update).toHaveBeenCalledWith({
         where: { id: approvalId },
         data: expect.objectContaining({
@@ -193,21 +209,19 @@ describe('approvalService', () => {
     });
 
     test('rejects when reviewer already assigned to someone else', async () => {
-      resolveUserId.mockResolvedValue(userIdA);
-      const assignedRequest = { ...mockApproval, reviewerId: userIdB };
-      mockPrisma.approvalRequest.findUnique.mockResolvedValue(assignedRequest);
+      const assignedRequest = { ...mockApprovalWithRequester, reviewerId: userIdB };
+      mockPrisma.approvalRequest.findFirst.mockResolvedValue(assignedRequest);
 
-      const result = await approvalService.review(uidA, approvalId, { status: 'approved' });
+      const result = await approvalService.review(uidB, approvalId, { status: 'approved' });
 
       expect(result.error).toBe('This request has already been reviewed');
       expect(result.status).toBe(400);
     });
 
     test('returns 404 when request not found', async () => {
-      resolveUserId.mockResolvedValue(userIdA);
-      mockPrisma.approvalRequest.findUnique.mockResolvedValue(null);
+      mockPrisma.approvalRequest.findFirst.mockResolvedValue(null);
 
-      const result = await approvalService.review(uidA, approvalId, { status: 'approved' });
+      const result = await approvalService.review(uidB, approvalId, { status: 'approved' });
 
       expect(result.error).toBe('Approval request not found');
       expect(result.status).toBe(404);
