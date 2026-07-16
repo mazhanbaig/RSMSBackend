@@ -25,8 +25,20 @@ async function findAllByUser(uid, filters = {}) {
 
 async function findPendingForReview(uid) {
     const prisma = getPrisma();
+    const userId = await resolveUserId(uid);
+    if (!userId) return { error: 'User not found', status: 404 };
+
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { orgId: true },
+    });
+    if (!user) return { error: 'User not found', status: 404 };
+
     const records = await prisma.approvalRequest.findMany({
-        where: { status: 'pending' },
+        where: {
+            status: 'pending',
+            requester: { orgId: user.orgId },
+        },
         include: defaultInclude,
         orderBy: { createdAt: 'desc' },
     });

@@ -1,6 +1,6 @@
 const { getPrisma, resolveUserId } = require('../config/database');
 
-async function createShareLink(uid, propertyId) {
+async function createShareLink(uid, propertyId, sharedWithName) {
     const prisma = getPrisma();
     const userId = await resolveUserId(uid);
     if (!userId) return { error: 'User not found', status: 404 };
@@ -9,7 +9,7 @@ async function createShareLink(uid, propertyId) {
     if (!property) return { error: 'Property not found', status: 404 };
 
     const link = await prisma.propertyShareLink.create({
-        data: { propertyId, createdById: userId },
+        data: { propertyId, createdById: userId, sharedWithName: sharedWithName || null },
     });
     return { data: link };
 }
@@ -60,7 +60,8 @@ async function getShareLinkByToken(token) {
     });
 
     link.viewCount += 1;
-    return { data: link };
+    const { sharedWithName, ...publicData } = link;
+    return { data: publicData };
 }
 
 async function registerVisitor(token, data) {
@@ -95,7 +96,15 @@ async function getShareLinksByProperty(uid, propertyId) {
         },
         orderBy: { createdAt: 'desc' },
     });
-    return { data: links };
+    return { data: links.map(l => ({
+        id: l.id,
+        token: l.token,
+        active: l.active,
+        viewCount: l.viewCount,
+        sharedWithName: l.sharedWithName,
+        createdAt: l.createdAt,
+        _count: l._count,
+    })) };
 }
 
 module.exports = { createShareLink, deactivateShareLink, getShareLinkByToken, registerVisitor, getShareLinksByProperty };

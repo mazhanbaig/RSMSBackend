@@ -4,7 +4,7 @@ const shareService = require('../services/shareService');
 
 async function createLink(req, res) {
     try {
-        const result = await shareService.createShareLink(req.user.uid, req.params.id);
+        const result = await shareService.createShareLink(req.user.uid, req.params.id, req.body.sharedWithName);
         if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
         res.status(201).json(ResponseObj(true, 'Share link created', result.data));
     } catch (err) {

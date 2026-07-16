@@ -37,7 +37,7 @@ model User {
   photoURL           String?
   provider           String?
   createdAt          DateTime     @default(now())
-  role               String       @default("agent")
+  role               String       @default("agent") // "owner" or "agent" — viewer removed
   isSuperAdmin       Boolean      @default(false)
   totpSecret         String?
   totpEnabled        Boolean      @default(false)
@@ -414,6 +414,7 @@ model PropertyShareLink {
   createdBy   User     @relation(fields: [createdById], references: [id])
   active      Boolean  @default(true)
   viewCount   Int      @default(0)
+  sharedWithName String?
   createdAt   DateTime @default(now())
 
   visitors  PropertyVisitor[]

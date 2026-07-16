@@ -1,11 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const verifyUser = require('../middlewares/authMiddleware');
-const { requireViewerReadOnly } = require('../middlewares/requireRole');
 const { validateOwnerData } = require('../middlewares/validate');
 const controller = require('../controllers/ownerController');
 
-router.use(verifyUser, requireViewerReadOnly);
+router.use(verifyUser);
 
 router.get('/', controller.list);
 router.get('/:id', controller.getOne);

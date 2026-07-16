@@ -97,17 +97,44 @@ describe('approvalService', () => {
   });
 
   describe('findPendingForReview', () => {
-    test('returns all pending requests', async () => {
+    test('returns pending requests scoped to own org', async () => {
+      resolveUserId.mockResolvedValue(userIdA);
+      mockPrisma.user.findUnique.mockResolvedValue({ orgId: 'org-a' });
       mockPrisma.approvalRequest.findMany.mockResolvedValue([mockApproval]);
 
       const result = await approvalService.findPendingForReview(uidA);
 
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: userIdA },
+        select: { orgId: true },
+      });
       expect(mockPrisma.approvalRequest.findMany).toHaveBeenCalledWith({
-        where: { status: 'pending' },
+        where: {
+          status: 'pending',
+          requester: { orgId: 'org-a' },
+        },
         include: expect.any(Object),
         orderBy: { createdAt: 'desc' },
       });
       expect(result.data).toEqual([mockApproval]);
+    });
+
+    test('does NOT return requests from other orgs', async () => {
+      resolveUserId.mockResolvedValue(userIdB);
+      mockPrisma.user.findUnique.mockResolvedValue({ orgId: 'org-b' });
+      mockPrisma.approvalRequest.findMany.mockResolvedValue([]);
+
+      const result = await approvalService.findPendingForReview(uidB);
+
+      expect(mockPrisma.approvalRequest.findMany).toHaveBeenCalledWith({
+        where: {
+          status: 'pending',
+          requester: { orgId: 'org-b' },
+        },
+        include: expect.any(Object),
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(result.data).toEqual([]);
     });
   });
 

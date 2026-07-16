@@ -1582,3 +1582,47 @@ Tests:       210 passed, 210 total
 - ✅ Committed and pushed to `dev`
 
 ---
+
+## Session 2026-07-16: Simplify Roles, Scope Approvals, Add Share Link Labels
+
+**Scope:** 3 tasks from user request
+
+### Changes Made
+
+**Part 1 — Remove internal viewer role**
+- `src/middlewares/requireRole.js`: removed `requireViewerReadOnly` function and export
+- 5 route files (`clients.js`, `owners.js`, `properties.js`, `events.js`, `tasks.js`): removed `requireViewerReadOnly` import and `router.use` reference, replaced with bare `verifyUser`
+- `prisma/schema.prisma`: updated `role` field comment to reflect only `"owner"`/`"agent"` valid
+- `scripts/bootstrap_live_test.js`, `setup_live_test.js`, `setup_roles.js`: changed `role: 'viewer'` → `'agent'`
+- `tests/middlewares/requireRole.test.js`: removed entire `requireViewerReadOnly` describe block (7 tests), replaced `'viewer'` mock with `'agent'`, added tests confirming agent CRUD works
+- DB role migration: user C (`test-agent-c@rsms-test.com`) updated from `viewer` → `agent`
+
+**Part 2 — Org-scope approvals pending-reviews**
+- `src/services/approvalService.js`: `findPendingForReview()` now resolves caller's `orgId` and filters by `requester.orgId` via relation filter
+- `tests/services/approvalService.test.js`: added org-scope test (same org sees, different org does not)
+
+**Part 3 — Add optional share link labeling**
+- `prisma/schema.prisma`: added `sharedWithName String?` to `PropertyShareLink`
+- Migration `20260716050140_add_share_link_label` created and applied
+- `src/services/shareService.js`: `createShareLink` accepts optional `sharedWithName`, `getShareLinksByProperty` includes it in list, `getShareLinkByToken` strips it from public response
+- `src/controllers/shareController.js`: passes `req.body.sharedWithName` to service
+- Verified: `sharedWithName` stored on create, visible in agent link list, absent from public view
+
+### Verification
+
+```
+Jest:       208 tests, 18 suites → ✅ PASS
+Live HTTP:  63 + 32 + 17 = 112 → ✅ PASS
+
+Manual curl checks:
+  ✅ Agent CRUD (GET /api/properties) → 200
+  ✅ Agent POST /api/invoices (owner-only) → 403
+  ✅ sharedWithName in create response → "Ahmed Khan"
+  ✅ sharedWithName in agent link list → "Ahmed Khan"
+  ✅ sharedWithName absent from public view
+  ✅ Approvals org-scoped: User C (own org) sees 1 pending, User A (diff org) sees 0
+
+Grep 'viewer' in src/ scripts/ tests/ → 0 references remaining
+```
+
+---

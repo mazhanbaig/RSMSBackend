@@ -73,7 +73,7 @@ describe('shareService', () => {
         where: { id: propertyId, userId: userIdA },
       });
       expect(mockPrisma.propertyShareLink.create).toHaveBeenCalledWith({
-        data: { propertyId, createdById: userIdA },
+        data: { propertyId, createdById: userIdA, sharedWithName: null },
       });
       expect(result.data).toEqual(mockLink);
     });

@@ -26,12 +26,4 @@ function requireRole(...allowedRoles) {
     };
 }
 
-function requireViewerReadOnly(req, res, next) {
-    const writeMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
-    if (writeMethods.includes(req.method)) {
-        return requireRole('owner', 'agent')(req, res, next);
-    }
-    next();
-}
-
-module.exports = { requireRole, requireViewerReadOnly };
+module.exports = { requireRole };
