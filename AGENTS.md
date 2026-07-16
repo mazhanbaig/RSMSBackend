@@ -15,13 +15,13 @@ before starting any task.
    understand it without explanation.
 3. **Never mark something "done" without real verification evidence** — actual
    command output (curl responses, test results, row counts), not a description of
-   what should happen. Log every task's start and result in `REPORT.md` at the project
-   root, appending to the existing file, not overwriting it.
+    what should happen. Log every task's start and result in `docs/archive/REPORT.md`,
+    appending to the existing file, not overwriting it.
 4. **Commit messages matter** — this repo is meant to look professional to anyone
    browsing it. Format: `type(scope): summary` + a 2-4 line body explaining why, not
    just what. Types: feat, fix, refactor, chore, docs, test, security.
 5. **Scope discipline** — if a task is scoped to X, do X. If you notice something else
-   worth fixing along the way, note it in REPORT.md as a follow-up, don't fix it
+    worth fixing along the way, note it in docs/archive/REPORT.md as a follow-up, don't fix it
    inline in the same change. Mixing concerns makes it impossible to isolate what
    broke if something regresses.
 6. **Payments stay disabled** — `PAYMENTS_ENABLED=false` in both frontend and backend
