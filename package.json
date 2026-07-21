@@ -4,11 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-  "dev": "set NODE_OPTIONS=--openssl-legacy-provider && nodemon server.js",
-  "start": "node server.js",
-  "build": "prisma generate",
-  "postinstall": "prisma generate",
-  "test": "jest"
+    "dev": "set NODE_OPTIONS=--openssl-legacy-provider && nodemon server.js",
+    "start": "node server.js",
+    "build": "prisma generate",
+    "postinstall": "prisma generate",
+    "test": "jest"
   },
   "keywords": [],
   "author": "",
@@ -30,7 +30,7 @@
     "firebase-admin": "^12.7.0",
     "helmet": "^8.2.0",
     "multer": "^2.0.2",
-    "otplib": "^13.4.1",
+    "otplib": "^12.0.1",
     "pg": "^8.22.0",
     "pino-http": "^11.0.0"
   },
