@@ -1,8 +1,9 @@
 const admin = require('firebase-admin');
 const { getAuth } = require('firebase-admin/auth');
 const { getDatabase } = require('firebase-admin/database');
+const { getApps, initializeApp } = require('firebase-admin/app');
 
-if (admin.getApps().length === 0) {
+if (getApps().length === 0) {
     try {
         const serviceAccount = {
             projectId: process.env.FIREBASE_PROJECT_ID,
@@ -10,8 +11,8 @@ if (admin.getApps().length === 0) {
             clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         };
 
-        admin.initializeApp({
-            credential: admin.cert(serviceAccount),
+        initializeApp({
+            credential: admin.credential.cert(serviceAccount),
             databaseURL: process.env.FIREBASE_DATABASE_URL,
         });
     } catch (err) {
