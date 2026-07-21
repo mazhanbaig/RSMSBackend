@@ -4,10 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "set NODE_OPTIONS=--openssl-legacy-provider && node server.js",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "dev": "set NODE_OPTIONS=--openssl-legacy-provider && npx nodemon server.js"
+  "dev": "set NODE_OPTIONS=--openssl-legacy-provider && nodemon server.js",
+  "start": "node server.js",
+  "build": "prisma generate",
+  "postinstall": "prisma generate",
+  "test": "jest"
   },
   "keywords": [],
   "author": "",
