@@ -1,4 +1,4 @@
-const { auth, firebaseInitialized } = require("../config/firebase");
+const { auth, firebaseInitialized, firebaseInitError, firebaseAuthError } = require("../config/firebase");
 const ResponseObj = require("../utils/ResponseObj");
 const { checkUserSuspended } = require("../services/adminService");
 
@@ -9,6 +9,8 @@ const verifyUser = async (req, res, next) => {
                 firebaseInitialized,
                 authExists: !!auth,
                 verifyIdTokenType: typeof auth?.verifyIdToken,
+                initError: firebaseInitError || null,
+                authError: firebaseAuthError || null,
             };
             console.error("Firebase auth not initialized", JSON.stringify(diag));
             return res

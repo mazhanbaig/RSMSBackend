@@ -39,6 +39,8 @@ if (admin.getApps().length === 0) {
 
 let db, auth;
 let firebaseInitialized = false;
+let firebaseInitError = null;
+let firebaseAuthError = null;
 
 try {
     db = getDatabase();
@@ -46,6 +48,7 @@ try {
     firebaseInitialized = true;
     console.log("Firebase Admin initialized successfully. auth:", !!auth);
 } catch (err) {
+    firebaseAuthError = err.message;
     console.error("Firebase getDatabase/getAuth error:", err.message);
     console.error("Full error:", err);
     console.error("FIREBASE_PROJECT_ID:", process.env.FIREBASE_PROJECT_ID);
@@ -54,4 +57,4 @@ try {
     console.error("FIREBASE_DATABASE_URL:", process.env.FIREBASE_DATABASE_URL);
 }
 
-module.exports = { admin, db, auth, firebaseInitialized };
+module.exports = { admin, db, auth, firebaseInitialized, firebaseInitError, firebaseAuthError };
