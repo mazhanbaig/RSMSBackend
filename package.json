@@ -18,6 +18,9 @@
   "engines": {
     "node": "24.x"
   },
+  "overrides": {
+    "jwks-rsa": "3.2.2"
+  },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "@prisma/adapter-neon": "^7.8.0",
