@@ -1850,3 +1850,34 @@ However, subsequent commits (`993e4a8`, `dfbf2c3`, `9306003`, `13d26e0`) modifie
 2. Added `"postinstall": "prisma generate"` and `"build": "prisma generate"` to `package.json` scripts
 3. Moved `prisma` from `devDependencies` to `dependencies` so Vercel installs it and can run `prisma generate` during build
 4. Cleaned up `start` and `dev` scripts (removed Windows-only `set NODE_OPTIONS=...` from `start` — that flag is not needed on Linux/Vercel and would cause the start command to fail on Vercel)
+
+### Verification (local)
+
+**Boot test:**
+```
+$ node -e "require('./server')"
+→ Rate limiting: Using Upstash Redis (shared store for serverless)
+→ Exit 0 — no errors
+```
+
+**Test suite:**
+```
+Test Suites: 18 passed, 18 total
+Tests:       208 passed, 208 total
+Time:        6.698s
+```
+
+### Git state
+- Commit `d54502c` on `main` — ready to push
+- Push blocked: requires GitHub credentials (personal access token)
+- Run: `git push origin main`
+- After Vercel auto-deploys, verify with:
+  - `curl -I https://zstate-backend.vercel.app/api/health` → expect 200
+  - `curl -I https://zstate-backend.vercel.app/api/clients` → expect 401 (auth required, not 500)
+
+### Follow-up note
+The large number of "modified" unstaged files in `git status` are CRLF→LF
+conversions caused by `sed -i` stripping Windows line endings from package.json
+and schema.prisma. These files are not actually changed in content — only line
+endings differ. They should NOT be committed in bulk. If this causes noise,
+add `* text=auto` to `.gitattributes` to normalize line endings consistently.

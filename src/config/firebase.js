@@ -15,12 +15,19 @@ if (admin.getApps().length === 0) {
             databaseURL: process.env.FIREBASE_DATABASE_URL,
         });
     } catch (err) {
-        console.error("Firebase Admin initialization error:", err);
-        throw err;
+        console.error("Firebase Admin initialization error:", err.message);
+        // Do not re-throw — a missing/malformed credential should not crash
+        // the entire serverless function at cold-start and 500 every route.
+        // Routes that actually use Firebase will fail individually when invoked.
     }
 }
 
-const db = getDatabase();
-const auth = getAuth();
+let db, auth;
+try {
+    db = getDatabase();
+    auth = getAuth();
+} catch (err) {
+    console.error("Firebase getDatabase/getAuth error:", err.message);
+}
 
 module.exports = { admin, db, auth };
