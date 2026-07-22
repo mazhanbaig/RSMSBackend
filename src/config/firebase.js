@@ -5,13 +5,15 @@ const { getDatabase } = require('firebase-admin/database');
 if (admin.getApps().length === 0) {
     try {
         let rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
-        
+
+        // Vercel stores FIREBASE_PRIVATE_KEY with literal \n sequences when pasted
+        // as a single line (the most common approach). Replace those with actual
+        // newline characters so admin.cert() can parse the PEM correctly.
+        // If the key already has real newlines this is a no-op.
         if (rawKey) {
-            if (!rawKey.includes('-----BEGIN PRIVATE KEY-----')) {
-                rawKey = rawKey.replace(/\\n/g, '\n').replace(/\\n/g, '\n');
-            }
+            rawKey = rawKey.replace(/\\n/g, '\n');
         }
-        
+
         const serviceAccount = {
             projectId: process.env.FIREBASE_PROJECT_ID,
             privateKey: rawKey,
