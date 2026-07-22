@@ -6,12 +6,10 @@ if (admin.getApps().length === 0) {
     try {
         let rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
         
-        if (rawKey.includes('\\n')) {
-            rawKey = rawKey.replace(/\\n/g, '\n');
-        }
-        
-        if (!rawKey.includes('-----BEGIN PRIVATE KEY-----')) {
-            rawKey = rawKey.replace(/\\n/g, '\n');
+        if (rawKey) {
+            if (!rawKey.includes('-----BEGIN PRIVATE KEY-----')) {
+                rawKey = rawKey.replace(/\\n/g, '\n').replace(/\\n/g, '\n');
+            }
         }
         
         const serviceAccount = {
@@ -31,7 +29,7 @@ if (admin.getApps().length === 0) {
         console.log("Firebase Admin app initialized successfully");
     } catch (err) {
         console.error("Firebase Admin initialization error:", err.message);
-        console.error("Stack:", err.stack);
+        console.error("Full error:", err);
     }
 }
 
@@ -45,7 +43,7 @@ try {
     console.log("Firebase Admin initialized successfully. auth:", !!auth);
 } catch (err) {
     console.error("Firebase getDatabase/getAuth error:", err.message);
-    console.error("Stack:", err.stack);
+    console.error("Full error:", err);
     console.error("FIREBASE_PROJECT_ID:", process.env.FIREBASE_PROJECT_ID);
     console.error("FIREBASE_CLIENT_EMAIL:", process.env.FIREBASE_CLIENT_EMAIL);
     console.error("FIREBASE_PRIVATE_KEY exists:", !!process.env.FIREBASE_PRIVATE_KEY);
