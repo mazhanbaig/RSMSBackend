@@ -4,9 +4,10 @@ const { getDatabase } = require('firebase-admin/database');
 
 if (admin.getApps().length === 0) {
     try {
+        const rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
         const serviceAccount = {
             projectId: process.env.FIREBASE_PROJECT_ID,
-            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+            privateKey: rawKey.includes('\\n') ? rawKey.replace(/\\n/g, '\n') : rawKey,
             clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         };
 
@@ -16,9 +17,6 @@ if (admin.getApps().length === 0) {
         });
     } catch (err) {
         console.error("Firebase Admin initialization error:", err.message);
-        // Do not re-throw — a missing/malformed credential should not crash
-        // the entire serverless function at cold-start and 500 every route.
-        // Routes that actually use Firebase will fail individually when invoked.
     }
 }
 
