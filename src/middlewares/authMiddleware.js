@@ -1,9 +1,16 @@
-const { auth } = require("../config/firebase");
+const { auth, firebaseInitialized } = require("../config/firebase");
 const ResponseObj = require("../utils/ResponseObj");
 const { checkUserSuspended } = require("../services/adminService");
 
 const verifyUser = async (req, res, next) => {
     try {
+        if (!firebaseInitialized || !auth || typeof auth.verifyIdToken !== 'function') {
+            console.error("Firebase auth not initialized");
+            return res
+                .status(500)
+                .json(ResponseObj(false, "Server configuration error", null, null));
+        }
+
         const header = req.headers["authorization"];
 
         if (!header) {
@@ -12,7 +19,6 @@ const verifyUser = async (req, res, next) => {
                 .json(ResponseObj(false, "Unauthorized: No Authorization header", null, null));
         }
 
-        // Expect format: "Bearer <token>"
         const tokenParts = header.split(" ");
         if (tokenParts.length !== 2 || tokenParts[0] !== "Bearer") {
             return res

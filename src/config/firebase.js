@@ -21,11 +21,18 @@ if (admin.getApps().length === 0) {
 }
 
 let db, auth;
+let firebaseInitialized = false;
+
 try {
     db = getDatabase();
     auth = getAuth();
+    firebaseInitialized = true;
+    console.log("Firebase Admin initialized successfully. auth:", !!auth);
 } catch (err) {
     console.error("Firebase getDatabase/getAuth error:", err.message);
+    console.error("FIREBASE_PROJECT_ID:", process.env.FIREBASE_PROJECT_ID);
+    console.error("FIREBASE_CLIENT_EMAIL:", process.env.FIREBASE_CLIENT_EMAIL);
+    console.error("FIREBASE_PRIVATE_KEY exists:", !!process.env.FIREBASE_PRIVATE_KEY);
 }
 
-module.exports = { admin, db, auth };
+module.exports = { admin, db, auth, firebaseInitialized };
