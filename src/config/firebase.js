@@ -11,7 +11,9 @@ if (admin.getApps().length === 0) {
         // newline characters so admin.cert() can parse the PEM correctly.
         // If the key already has real newlines this is a no-op.
         if (rawKey) {
-            rawKey = rawKey.replace(/\\n/g, '\n');
+            // Handle both \\n (local .env double-escape) and \n (Vercel single-escape)
+            rawKey = rawKey.replace(/\\\\n/g, '\n').replace(/\\n/g, '\n');
+            // The second replace is a no-op if \\n was already handled above
         }
 
         const serviceAccount = {
