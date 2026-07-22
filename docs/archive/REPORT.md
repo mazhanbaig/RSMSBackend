@@ -1814,3 +1814,39 @@ otplib@13.0.1
 - Awaiting project owner confirmation before merging to `main` and pushing.
 
 ---
+
+---
+
+## Production 500 (All Routes) — Second Incident — July 22, 2026
+
+### Task start
+Diagnosing full production outage: every route on `https://zstate-backend.vercel.app` returning 500.
+
+### Pre-fix investigation
+
+**Boot test (local):** Server loads cleanly — `node -e "require('./server')"` exits 0 with no errors. All dependencies load (express, cors, helmet, pino-http, @upstash/redis, @upstash/ratelimit, otplib, @prisma/client, @prisma/adapter-pg, cloudinary, firebase-admin all OK).
+
+**Git log analysis:** The current HEAD on `main` is `c7fb965`. Tracing back through commits, `f69050b` ("Fix Prisma generation") previously added:
+- `postinstall: "prisma generate"` to package.json scripts
+- `build: "prisma generate"` to package.json scripts
+- `url = env("DATABASE_URL")` to `datasource db` in schema.prisma
+
+However, subsequent commits (`993e4a8`, `dfbf2c3`, `9306003`, `13d26e0`) modified `package.json` and `vercel.json` for Node.js version pinning, and in doing so **overwrote package.json back to a version without the postinstall/build scripts**. The schema.prisma `url` field was also lost.
+
+### Root causes confirmed (two, both required to fix)
+
+**2b — Prisma Client not generated during Vercel build (PRIMARY)**
+- `package.json` has no `postinstall` or `build` script to run `prisma generate`
+- `prisma` is in `devDependencies` — Vercel does not install devDependencies by default, so even if the script existed, `prisma` CLI would not be available to run it
+- Without `prisma generate`, `@prisma/client` has no generated query engine for the Vercel Linux environment, causing `require('@prisma/client')` to fail at import time → every route 500s
+
+**2a — Missing `url` in datasource block (SECONDARY, would cause DB failures even if generate ran)**
+- `prisma/schema.prisma` datasource block has no `url = env("DATABASE_URL")` field
+- This was present in `f69050b` but lost in subsequent merges
+- Without it, Prisma cannot connect to Neon Postgres
+
+### Fix applied
+1. Added `url = env("DATABASE_URL")` back to `datasource db` in `prisma/schema.prisma`
+2. Added `"postinstall": "prisma generate"` and `"build": "prisma generate"` to `package.json` scripts
+3. Moved `prisma` from `devDependencies` to `dependencies` so Vercel installs it and can run `prisma generate` during build
+4. Cleaned up `start` and `dev` scripts (removed Windows-only `set NODE_OPTIONS=...` from `start` — that flag is not needed on Linux/Vercel and would cause the start command to fail on Vercel)
