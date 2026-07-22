@@ -30,8 +30,9 @@ if (admin.getApps().length === 0) {
             credential: admin.cert(serviceAccount),
             databaseURL: process.env.FIREBASE_DATABASE_URL,
         });
-        console.log("Firebase Admin app initialized successfully");
+        console.log("Firebase Admin initialized successfully");
     } catch (err) {
+        firebaseInitError = err.message;
         console.error("Firebase Admin initialization error:", err.message);
         console.error("Full error:", err);
     }
