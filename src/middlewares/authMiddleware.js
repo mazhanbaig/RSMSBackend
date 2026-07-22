@@ -5,10 +5,15 @@ const { checkUserSuspended } = require("../services/adminService");
 const verifyUser = async (req, res, next) => {
     try {
         if (!firebaseInitialized || !auth || typeof auth.verifyIdToken !== 'function') {
-            console.error("Firebase auth not initialized");
+            const diag = {
+                firebaseInitialized,
+                authExists: !!auth,
+                verifyIdTokenType: typeof auth?.verifyIdToken,
+            };
+            console.error("Firebase auth not initialized", JSON.stringify(diag));
             return res
                 .status(500)
-                .json(ResponseObj(false, "Server configuration error", null, null));
+                .json(ResponseObj(false, "Server configuration error", diag, null));
         }
 
         const header = req.headers["authorization"];
