@@ -83,6 +83,18 @@ before starting any task.
   `main` directly — check `git log --oneline --graph --all` before assuming which
   branch has the latest state.
 
+## KNOWN GOTCHAS
+
+- **ESM-only transitive dependencies (CommonJS backend):** This backend uses
+  CommonJS (`require()`). Any dependency that pulls in an ESM-only package will
+  crash the entire serverless function at import time (`ERR_REQUIRE_ESM`). Before
+  adding a new npm dependency, check its transitive deps for `"type": "module"` in
+  their `package.json` — especially for modern/crypto-related packages. This exact
+  failure mode (works locally in dev with looser module resolution, crashes in
+  Vercel's stricter serverless bundling) is easy to miss until it's already in
+  production. If a dependency introduces ESM-only transitive deps, pin to an older
+  version that avoids them, or replace with a CJS-safe alternative.
+
 ## WORKFLOW FOR EVERY TASK
 
 1. Read the specific task instructions given to you.

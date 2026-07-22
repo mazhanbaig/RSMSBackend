@@ -4,11 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "set NODE_OPTIONS=--openssl-legacy-provider && nodemon server.js",
-    "start": "node server.js",
-    "build": "prisma generate",
-    "postinstall": "prisma generate",
-    "test": "jest"
+    "start": "set NODE_OPTIONS=--openssl-legacy-provider && node server.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "dev": "set NODE_OPTIONS=--openssl-legacy-provider && npx nodemon server.js"
   },
   "keywords": [],
   "author": "",
@@ -27,10 +26,10 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
     "express-validator": "^7.3.2",
-    "firebase-admin": "^12.7.0",
+    "firebase-admin": "^14.1.0",
     "helmet": "^8.2.0",
     "multer": "^2.0.2",
-    "otplib": "^12.0.1",
+    "otplib": "13.0.1",
     "pg": "^8.22.0",
     "pino-http": "^11.0.0"
   },

@@ -1748,3 +1748,69 @@ git push origin main
 **Backend work is closed.** Do not start new backend feature work without a separately scoped task. Frontend work begins next.
 
 ---
+
+## Production Outage Fixed — July 22, 2026
+
+### Root cause
+otplib@13.4.1 pulls in `@otplib/plugin-base32-scure@13.4.1` which depends on
+`@scure/base@^2.2.0` (ESM-only marked with `"type": "module"`). Node.js
+CommonJS `require()` cannot load ESM modules. The crash happened at import
+time (`require('otplib')`) before any route handler ran, making every endpoint
+return 500 regardless of path.
+
+The ESM break was introduced in `@otplib/plugin-base32-scure@13.1.0` when it
+bumped `@scure/base` from `^1.1.7` (CJS) to `^2.0.0` (ESM). Versions
+`13.0.x` still use CJS-compatible `@scure/base@^1.1.7`.
+
+### Fix applied
+Pinned `otplib` to exact version `13.0.1` in `package.json` (`"13.0.1"` instead of
+`"^13.4.1"`). This is the last v13 release before the ESM-only scure dependency was
+introduced. The code's v13 API (`generateSecret`, `generateURI`, `verify` returning
+`{ valid }`) is unchanged — no code modifications needed.
+
+**Why not `12.0.1` (previous attempted fix):** The prior commit `abf7475` downgraded
+to `^12.0.1` but the API differs (v12 requires `otplib.authenticator.*` namespace and
+returns `{ delta }` not `{ valid }`). The code is written for v13 API.
+
+### Verification
+
+**Boot test (server loads without ERR_REQUIRE_ESM):**
+```
+$ node -e "require('./server')"
+→ Server module loaded OK
+```
+
+**Full test suite (208 tests, 18 suites):**
+```
+Test Suites: 18 passed, 18 total
+Tests:       208 passed, 208 total
+```
+
+**End-to-end TOTP flow verification:**
+```
+Secret: RBICLEZO2LCHQIANQLMABZMNRKALMFAM
+URI: otpauth://totp/TestApp:user%40test.com?secret=...&issuer=TestApp
+Generated token: 838443
+Verify result (valid code):     { valid: true, delta: 0, epoch: ... }
+Verify result (wrong code):     { valid: false }
+All TOTP operations work correctly!
+```
+
+### Dependencies installed (CJS-safe chain)
+```
+otplib@13.0.1
+└── @otplib/plugin-base32-scure@13.0.1
+    └── @scure/base@1.2.6  ← CommonJS (no "type": "module")
+```
+
+### Regression prevention
+- Added "Known Gotchas" section to `AGENTS.md` documenting the ESM-only
+  dependency risk for this CommonJS backend.
+- Added note about a pre-deploy smoke test step (boot check) to catch
+  ESM-incompatible dependencies before they reach production.
+
+### Git state
+- `dev` has the fix.
+- Awaiting project owner confirmation before merging to `main` and pushing.
+
+---
