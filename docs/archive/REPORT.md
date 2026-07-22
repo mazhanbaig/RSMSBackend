@@ -1881,3 +1881,36 @@ conversions caused by `sed -i` stripping Windows line endings from package.json
 and schema.prisma. These files are not actually changed in content — only line
 endings differ. They should NOT be committed in bulk. If this causes noise,
 add `* text=auto` to `.gitattributes` to normalize line endings consistently.
+
+### Final verification
+
+```
+curl -s -o /dev/null -w "%{http_code}" https://zstate-backend.vercel.app/api/health
+→ 200
+
+curl -s -o /dev/null -w "%{http_code}" https://zstate-backend.vercel.app/api/clients
+→ 401
+
+curl -s https://zstate-backend.vercel.app/api/health
+→ {"success":true,"message":"OK","data":{"timestamp":"2026-07-22T06:25:48.933Z","uptime":68.258013008,"nodeVersion":"v24.18.0","environment":"production"}}
+```
+
+Production fully restored. Node v24.18.0 on Vercel confirmed.
+
+### Full chain of ESM crashes in this incident
+
+Three separate ERR_REQUIRE_ESM crashes were hit in sequence:
+
+1. `otplib@13.4.1 → @scure/base@^2` (ESM) — fixed previously, pinned to `13.0.1`
+2. `postinstall/prisma generate` missing — build fix, not ESM
+3. `firebase-admin → jwks-rsa@4.x → jose@^6` (ESM) — fixed this session, pinned `jwks-rsa@3.2.2` via overrides
+
+### Root cause of why these appeared now
+
+The Node.js version-pinning commits (`993e4a8` etc.) overwrote `package.json`, losing the `overrides` block that had `jwks-rsa: "3.2.2"` pinned. The AGENTS.md "Known Gotchas" section already documented this pin but the overrides were not present in the file — they had never actually been committed. This session added them for the first time.
+
+### Commits in this session
+- `d54502c` — postinstall + prisma generate (build fix)
+- `f079309` — revert schema url (Prisma v7 doesn't use url in schema)
+- `c23dad9` — firebase init no longer re-throws (graceful degradation)
+- `ebf528a` — jwks-rsa@3.2.2 override (ESM fix, restored production)

@@ -94,6 +94,9 @@ before starting any task.
   Vercel's stricter serverless bundling) is easy to miss until it's already in
   production. If a dependency introduces ESM-only transitive deps, pin to an older
   version that avoids them, or replace with a CJS-safe alternative.
+  **Known pinned packages (do not remove these overrides without checking the ESM chain):**
+  - `otplib` pinned to exact `13.0.1` in dependencies — v13.1+ pulls `@scure/base@^2` (ESM-only)
+  - `jwks-rsa` pinned to `3.2.2` via `overrides` — v4.x pulls `jose@^6` (ESM-only); firebase-admin depends on jwks-rsa
 
 ## WORKFLOW FOR EVERY TASK
 
