@@ -50,7 +50,7 @@ app.use(cors({
         if (!origin) return cb(null, true);
         if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
         if (process.env.NODE_ENV !== 'production' && /^http:\/\/localhost(:\d+)?$/.test(origin)) return cb(null, true);
-        cb(new Error(`Origin ${origin} not allowed by CORS`));
+        cb(null, false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
