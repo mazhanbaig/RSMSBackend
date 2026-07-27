@@ -3,9 +3,10 @@ const taskService = require('../services/taskService');
 
 async function list(req, res) {
     try {
-        const result = await taskService.findAllByUser(req.user.uid);
+        const result = await taskService.findAllByUser(req.user.uid, req.query);
         if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
-        res.status(200).json(ResponseObj(true, 'Tasks fetched', result.data));
+        const { data, total, page, limit } = result;
+        res.status(200).json(ResponseObj(true, 'Tasks fetched', data, { total, page, limit }));
     } catch (err) {
         console.error('taskController.list:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch tasks', null, err.message));

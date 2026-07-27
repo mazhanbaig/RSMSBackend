@@ -5,13 +5,36 @@ async function getOverview(uid) {
     const userId = await resolveUserId(uid);
     if (!userId) return { error: 'User not found', status: 404 };
 
-    const [totalClients, totalProperties, propertiesByStatus] = await Promise.all([
+    const [
+        totalClients,
+        totalProperties,
+        totalOwners,
+        totalEvents,
+        totalTasks,
+        totalInvoices,
+        propertiesByStatus,
+        invoiceAgg,
+        clientsByStage,
+    ] = await Promise.all([
         prisma.client.count({ where: { userId } }),
         prisma.property.count({ where: { userId } }),
+        prisma.owner.count({ where: { userId } }),
+        prisma.event.count({ where: { userId } }),
+        prisma.task.count({ where: { userId } }),
+        prisma.invoice.count({ where: { userId } }),
         prisma.property.groupBy({
             by: ['status'],
             where: { userId },
             _count: { status: true },
+        }),
+        prisma.invoice.aggregate({
+            where: { userId, status: 'paid' },
+            _sum: { total: true },
+        }),
+        prisma.client.groupBy({
+            by: ['pipelineStage'],
+            where: { userId },
+            _count: { pipelineStage: true },
         }),
     ]);
 
@@ -21,11 +44,23 @@ async function getOverview(uid) {
         statusBreakdown[key] = row._count.status;
     }
 
+    const pipelineBreakdown = {};
+    for (const row of clientsByStage) {
+        const key = row.pipelineStage || 'unspecified';
+        pipelineBreakdown[key] = row._count.pipelineStage;
+    }
+
     return {
         data: {
             totalClients,
             totalProperties,
+            totalOwners,
+            totalEvents,
+            totalTasks,
+            totalInvoices,
+            totalRevenue: invoiceAgg._sum.total || 0,
             propertyStatusBreakdown: statusBreakdown,
+            clientPipelineBreakdown: pipelineBreakdown,
         },
     };
 }
