@@ -5,7 +5,8 @@ async function list(req, res) {
     try {
         const result = await invoiceService.findAllByUser(req.user.uid, req.query);
         if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
-        res.status(200).json(ResponseObj(true, 'Invoices fetched', result.data));
+        const { data, total, page, limit } = result;
+        res.status(200).json(ResponseObj(true, 'Invoices fetched', data, { total, page, limit }));
     } catch (err) {
         console.error('invoiceController.list:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch invoices', null, err.message));

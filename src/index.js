@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
+const compression = require('compression');
 const pino = require('pino-http')();
 const { Redis } = require("@upstash/redis");
 const { Ratelimit } = require("@upstash/ratelimit");
@@ -27,17 +28,33 @@ const chatRoutes = require("./routes/chat");
 
 const app = express();
 
-app.use(helmet());
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: false,
+}));
+app.use(compression({ level: 6, threshold: 1024 }));
 app.use(pino);
 
-app.use(cors({
-    origin: [
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : [
         'http://localhost:3000',
         'http://localhost:3001',
         'http://localhost:3002',
-        'https://zstate.vercel.app'
-    ],
-    credentials: true
+        'http://127.0.0.1:3000',
+        'https://zstate.vercel.app',
+    ];
+
+app.use(cors({
+    origin: (origin, cb) => {
+        if (!origin) return cb(null, true);
+        if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+        if (process.env.NODE_ENV !== 'production' && /^http:\/\/localhost(:\d+)?$/.test(origin)) return cb(null, true);
+        cb(new Error(`Origin ${origin} not allowed by CORS`));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-TOTP-Code', 'X-Requested-With'],
 }));
 
 app.use(express.json({ limit: '1mb' }));
@@ -201,12 +218,23 @@ app.use((err, req, res, next) => {
     next(err);
 });
 
+// ─── 404 Handler ────────────────────────────────────────────────────
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        message: `Route ${req.method} ${req.originalUrl} not found`,
+        data: null,
+        error: null,
+    });
+});
+
 // ─── Global Error Handler ────────────────────────────────────────────
 app.use((err, req, res, _next) => {
     console.error('Unhandled error:', err);
-    res.status(500).json({
+    const statusCode = err.statusCode || 500;
+    res.status(statusCode).json({
         success: false,
-        message: 'Internal server error',
+        message: statusCode === 500 ? 'Internal server error' : err.message,
         data: null,
         error: process.env.NODE_ENV === 'development' ? err.message : null,
     });

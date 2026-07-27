@@ -5,7 +5,8 @@ async function list(req, res) {
     try {
         const result = await propertyService.findAllByUser(req.user.uid, req.query);
         if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
-        res.status(200).json(ResponseObj(true, 'Properties fetched', result.data));
+        const { data, total, page, limit } = result;
+        res.status(200).json(ResponseObj(true, 'Properties fetched', data, { total, page, limit }));
     } catch (err) {
         console.error('propertyController.list:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch properties', null, err.message));

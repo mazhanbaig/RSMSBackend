@@ -1,12 +1,30 @@
 const { getPrisma, resolveUserId } = require('../config/database');
 const { logActivity } = require('./activityService');
 
-async function findAllByUser(uid) {
+async function findAllByUser(uid, query = {}) {
     const prisma = getPrisma();
     const userId = await resolveUserId(uid);
     if (!userId) return { error: 'User not found', status: 404 };
-    const records = await prisma.task.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } });
-    return { data: records };
+
+    const where = { userId };
+    if (query.search) {
+        where.OR = [
+            { title: { contains: query.search, mode: 'insensitive' } },
+            { description: { contains: query.search, mode: 'insensitive' } },
+        ];
+    }
+    if (query.completed !== undefined) where.completed = query.completed === 'true';
+    if (query.priority) where.priority = query.priority;
+
+    const page = Math.max(1, parseInt(query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(query.limit, 10) || 50));
+    const skip = (page - 1) * limit;
+
+    const [records, total] = await Promise.all([
+        prisma.task.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' } }),
+        prisma.task.count({ where }),
+    ]);
+    return { data: records, total, page, limit };
 }
 
 async function findById(uid, id) {

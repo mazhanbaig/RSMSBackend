@@ -3,9 +3,10 @@ const ownerService = require('../services/ownerService');
 
 async function list(req, res) {
     try {
-        const result = await ownerService.findAllByUser(req.user.uid);
+        const result = await ownerService.findAllByUser(req.user.uid, req.query);
         if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
-        res.status(200).json(ResponseObj(true, 'Owners fetched', result.data));
+        const { data, total, page, limit } = result;
+        res.status(200).json(ResponseObj(true, 'Owners fetched', data, { total, page, limit }));
     } catch (err) {
         console.error('ownerController.list:', err);
         res.status(500).json(ResponseObj(false, 'Failed to fetch owners', null, err.message));

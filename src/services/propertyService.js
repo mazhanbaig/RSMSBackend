@@ -37,12 +37,28 @@ async function findAllByUser(uid, queryParams) {
     const userId = await resolveUserId(uid);
     if (!userId) return { error: 'User not found', status: 404 };
 
+    const q = queryParams || {};
     const where = { userId };
-    const filterConditions = buildPropertyFilters(queryParams || {});
+    const filterConditions = buildPropertyFilters(q);
     Object.assign(where, filterConditions);
 
-    const records = await prisma.property.findMany({ where, orderBy: { createdAt: 'desc' } });
-    return { data: records };
+    if (q.search) {
+        where.OR = [
+            { title: { contains: q.search, mode: 'insensitive' } },
+            { address: { contains: q.search, mode: 'insensitive' } },
+            { city: { contains: q.search, mode: 'insensitive' } },
+        ];
+    }
+
+    const page = Math.max(1, parseInt(q.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(q.limit, 10) || 50));
+    const skip = (page - 1) * limit;
+
+    const [records, total] = await Promise.all([
+        prisma.property.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' } }),
+        prisma.property.count({ where }),
+    ]);
+    return { data: records, total, page, limit };
 }
 
 async function findById(uid, id) {
@@ -108,7 +124,7 @@ async function update(uid, id, data) {
             clientId: data.clientId !== undefined ? data.clientId : existing.clientId,
         },
     });
-    await logActivity(uid, 'updated', 'Property', id, { from: existing.status || existing.pipelineStage, to: data.status || data.pipelineStage }).catch(() => {});
+    await logActivity(uid, 'updated', 'Property', id, { from: existing.status, to: data.status }).catch(() => {});
     return { data: record };
 }
 

@@ -1,12 +1,29 @@
 const { getPrisma, resolveUserId } = require('../config/database');
 const { logActivity } = require('./activityService');
 
-async function findAllByUser(uid) {
+async function findAllByUser(uid, query = {}) {
     const prisma = getPrisma();
     const userId = await resolveUserId(uid);
     if (!userId) return { error: 'User not found', status: 404 };
-    const records = await prisma.owner.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } });
-    return { data: records };
+
+    const where = { userId };
+    if (query.search) {
+        where.OR = [
+            { name: { contains: query.search, mode: 'insensitive' } },
+            { email: { contains: query.search, mode: 'insensitive' } },
+            { phone: { contains: query.search, mode: 'insensitive' } },
+        ];
+    }
+
+    const page = Math.max(1, parseInt(query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(query.limit, 10) || 50));
+    const skip = (page - 1) * limit;
+
+    const [records, total] = await Promise.all([
+        prisma.owner.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' } }),
+        prisma.owner.count({ where }),
+    ]);
+    return { data: records, total, page, limit };
 }
 
 async function findById(uid, id) {
@@ -54,7 +71,7 @@ async function update(uid, id, data) {
             notes: data.notes !== undefined ? data.notes : existing.notes,
         },
     });
-    await logActivity(uid, 'updated', 'Owner', id, { from: existing.status || existing.pipelineStage, to: data.status || data.pipelineStage }).catch(() => {});
+    await logActivity(uid, 'updated', 'Owner', id, null).catch(() => {});
     return { data: record };
 }
 
