@@ -1,9 +1,10 @@
 jest.mock('../../src/config/database', () => ({
   getPrisma: jest.fn(),
   resolveUserId: jest.fn(),
+  resolveUser: jest.fn(),
 }));
 
-const { getPrisma, resolveUserId } = require('../../src/config/database');
+const { getPrisma, resolveUserId, resolveUser } = require('../../src/config/database');
 const propertyService = require('../../src/services/propertyService');
 
 describe('propertyService', () => {
@@ -36,6 +37,7 @@ describe('propertyService', () => {
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
+        count: jest.fn(),
       },
     };
     getPrisma.mockReturnValue(mockPrisma);
@@ -82,24 +84,32 @@ describe('propertyService', () => {
     test('returns all properties when no filters', async () => {
       resolveUserId.mockResolvedValue(userIdA);
       mockPrisma.property.findMany.mockResolvedValue([mockProperty]);
+      mockPrisma.property.count.mockResolvedValue(1);
 
       const result = await propertyService.findAllByUser(uidA, {});
 
       expect(mockPrisma.property.findMany).toHaveBeenCalledWith({
         where: { userId: userIdA },
+        skip: 0,
+        take: 50,
         orderBy: { createdAt: 'desc' },
       });
+      expect(mockPrisma.property.count).toHaveBeenCalledWith({ where: { userId: userIdA } });
       expect(result.data).toEqual([mockProperty]);
+      expect(result.total).toBe(1);
     });
 
     test('applies city filter to query', async () => {
       resolveUserId.mockResolvedValue(userIdA);
       mockPrisma.property.findMany.mockResolvedValue([mockProperty]);
+      mockPrisma.property.count.mockResolvedValue(1);
 
       await propertyService.findAllByUser(uidA, { city: 'Karachi' });
 
       expect(mockPrisma.property.findMany).toHaveBeenCalledWith({
         where: { userId: userIdA, city: { contains: 'Karachi', mode: 'insensitive' } },
+        skip: 0,
+        take: 50,
         orderBy: { createdAt: 'desc' },
       });
     });
@@ -113,11 +123,14 @@ describe('propertyService', () => {
     test('applies featured filter', async () => {
       resolveUserId.mockResolvedValue(userIdA);
       mockPrisma.property.findMany.mockResolvedValue([{ ...mockProperty, featured: true }]);
+      mockPrisma.property.count.mockResolvedValue(1);
 
       await propertyService.findAllByUser(uidA, { featured: 'true' });
 
       expect(mockPrisma.property.findMany).toHaveBeenCalledWith({
         where: { userId: userIdA, featured: true },
+        skip: 0,
+        take: 50,
         orderBy: { createdAt: 'desc' },
       });
     });
@@ -160,6 +173,7 @@ describe('propertyService', () => {
       expect(mockPrisma.property.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           uid: uidA,
+          orgId: uidA,
           title: 'Nice House',
           city: 'Karachi',
           propertyType: 'house',

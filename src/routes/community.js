@@ -1,7 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const verifyUser = require('../middlewares/authMiddleware');
+const { sanitizeBody } = require('../middlewares/sanitize');
 const controller = require('../controllers/communityController');
+
+router.use(verifyUser, sanitizeBody);
 
 router.get('/posts', verifyUser, controller.listPosts);
 router.get('/posts/:id', verifyUser, controller.getPost);

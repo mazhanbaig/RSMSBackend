@@ -1,60 +1,36 @@
+const asyncHandler = require('../middlewares/asyncHandler');
 const ResponseObj = require('../utils/ResponseObj');
 const taskService = require('../services/taskService');
 
-async function list(req, res) {
-    try {
-        const result = await taskService.findAllByUser(req.user.uid, req.query);
-        if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
-        const { data, total, page, limit } = result;
-        res.status(200).json(ResponseObj(true, 'Tasks fetched', data, { total, page, limit }));
-    } catch (err) {
-        console.error('taskController.list:', err);
-        res.status(500).json(ResponseObj(false, 'Failed to fetch tasks', null, err.message));
-    }
-}
+const list = asyncHandler(async (req, res) => {
+    const result = await taskService.findAllByUser(req.user.uid, req.query);
+    if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
+    const { data, total, page, limit } = result;
+    res.status(200).json(ResponseObj(true, 'Tasks fetched', data, { total, page, limit }));
+});
 
-async function getOne(req, res) {
-    try {
-        const result = await taskService.findById(req.user.uid, req.params.id);
-        if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
-        res.status(200).json(ResponseObj(true, 'Task fetched', result.data));
-    } catch (err) {
-        console.error('taskController.getOne:', err);
-        res.status(500).json(ResponseObj(false, 'Failed to fetch task', null, err.message));
-    }
-}
+const getOne = asyncHandler(async (req, res) => {
+    const result = await taskService.findById(req.user.uid, req.params.id);
+    if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
+    res.status(200).json(ResponseObj(true, 'Task fetched', result.data));
+});
 
-async function create(req, res) {
-    try {
-        const result = await taskService.create(req.user.uid, req.body);
-        if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
-        res.status(201).json(ResponseObj(true, 'Task created', result.data));
-    } catch (err) {
-        console.error('taskController.create:', err);
-        res.status(500).json(ResponseObj(false, 'Failed to create task', null, err.message));
-    }
-}
+const create = asyncHandler(async (req, res) => {
+    const result = await taskService.create(req.user.uid, req.body);
+    if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
+    res.status(201).json(ResponseObj(true, 'Task created', result.data));
+});
 
-async function update(req, res) {
-    try {
-        const result = await taskService.update(req.user.uid, req.params.id, req.body);
-        if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
-        res.status(200).json(ResponseObj(true, 'Task updated', result.data));
-    } catch (err) {
-        console.error('taskController.update:', err);
-        res.status(500).json(ResponseObj(false, 'Failed to update task', null, err.message));
-    }
-}
+const update = asyncHandler(async (req, res) => {
+    const result = await taskService.update(req.user.uid, req.params.id, req.body);
+    if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
+    res.status(200).json(ResponseObj(true, 'Task updated', result.data));
+});
 
-async function remove(req, res) {
-    try {
-        const result = await taskService.remove(req.user.uid, req.params.id);
-        if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
-        res.status(200).json(ResponseObj(true, 'Task deleted'));
-    } catch (err) {
-        console.error('taskController.remove:', err);
-        res.status(500).json(ResponseObj(false, 'Failed to delete task', null, err.message));
-    }
-}
+const remove = asyncHandler(async (req, res) => {
+    const result = await taskService.remove(req.user.uid, req.params.id);
+    if (result.error) return res.status(result.status).json(ResponseObj(false, result.error));
+    res.status(200).json(ResponseObj(true, 'Task deleted'));
+});
 
 module.exports = { list, getOne, create, update, remove };

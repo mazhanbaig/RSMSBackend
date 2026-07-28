@@ -1,4 +1,10 @@
 const { auth, firebaseInitialized, firebaseInitError, firebaseAuthError } = require("../config/firebase");
+
+if (!firebaseInitialized || !auth) {
+  console.error('Firebase auth not initialized in authMiddleware');
+  process.exit(1);
+}
+
 const ResponseObj = require("../utils/ResponseObj");
 const { checkUserSuspended } = require("../services/adminService");
 

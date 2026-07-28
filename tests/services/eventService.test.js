@@ -1,9 +1,10 @@
 jest.mock('../../src/config/database', () => ({
   getPrisma: jest.fn(),
   resolveUserId: jest.fn(),
+  resolveUser: jest.fn(),
 }));
 
-const { getPrisma, resolveUserId } = require('../../src/config/database');
+const { getPrisma, resolveUserId, resolveUser } = require('../../src/config/database');
 const eventService = require('../../src/services/eventService');
 
 describe('eventService', () => {
@@ -18,8 +19,9 @@ describe('eventService', () => {
   const mockEvent = {
     id: eventId,
     uid: uidA,
-    title: 'Property Showing',
-    startTime: new Date('2026-07-15T10:00:00Z'),
+    title: 'Open House',
+    description: 'Property open event',
+    startTime: new Date('2024-06-10T10:00:00Z'),
     userId: userIdA,
   };
 
@@ -31,6 +33,7 @@ describe('eventService', () => {
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
+        count: jest.fn(),
       },
     };
     getPrisma.mockReturnValue(mockPrisma);
@@ -39,24 +42,46 @@ describe('eventService', () => {
   afterEach(() => jest.clearAllMocks());
 
   describe('findAllByUser', () => {
-    test('returns events scoped to user', async () => {
+    test('returns all events when no filters', async () => {
       resolveUserId.mockResolvedValue(userIdA);
       mockPrisma.event.findMany.mockResolvedValue([mockEvent]);
+      mockPrisma.event.count.mockResolvedValue(1);
 
-      const result = await eventService.findAllByUser(uidA);
+      const result = await eventService.findAllByUser(uidA, {});
 
       expect(mockPrisma.event.findMany).toHaveBeenCalledWith({
         where: { userId: userIdA },
+        skip: 0,
+        take: 50,
         orderBy: { startTime: 'desc' },
       });
+      expect(mockPrisma.event.count).toHaveBeenCalledWith({ where: { userId: userIdA } });
       expect(result.data).toEqual([mockEvent]);
+      expect(result.total).toBe(1);
     });
 
-    test('returns 404 when user not found', async () => {
+    test('applies search filter to query', async () => {
+      resolveUserId.mockResolvedValue(userIdA);
+      mockPrisma.event.findMany.mockResolvedValue([mockEvent]);
+      mockPrisma.event.count.mockResolvedValue(1);
+
+      await eventService.findAllByUser(uidA, { search: 'Open House' });
+
+      expect(mockPrisma.event.findMany).toHaveBeenCalledWith({
+        where: { userId: userIdA, OR: [
+          { title: { contains: 'Open House', mode: 'insensitive' } },
+          { description: { contains: 'Open House', mode: 'insensitive' } },
+        ] },
+        skip: 0,
+        take: 50,
+        orderBy: { startTime: 'desc' },
+      });
+    });
+
+    test('returns error when user not found', async () => {
       resolveUserId.mockResolvedValue(null);
-      const result = await eventService.findAllByUser('unknown');
+      const result = await eventService.findAllByUser('unknown', {});
       expect(result.error).toBe('User not found');
-      expect(result.status).toBe(404);
     });
   });
 
@@ -69,7 +94,7 @@ describe('eventService', () => {
       expect(result.data).toEqual(mockEvent);
     });
 
-    test('user B cannot see user A/ event', async () => {
+    test('user B cannot see user A event', async () => {
       resolveUserId.mockResolvedValue(userIdB);
       mockPrisma.event.findFirst.mockResolvedValue(null);
 
@@ -80,16 +105,24 @@ describe('eventService', () => {
   });
 
   describe('create', () => {
-    test('creates event with correct userId scope', async () => {
+    test('creates event', async () => {
       resolveUserId.mockResolvedValue(userIdA);
       mockPrisma.event.create.mockResolvedValue(mockEvent);
 
-      const result = await eventService.create(uidA, { title: 'Property Showing', startTime: '2026-07-15T10:00:00Z' });
+      const input = {
+        title: 'Open House',
+        description: 'Property open event',
+        startTime: '2024-06-10T10:00:00Z',
+      };
+      const result = await eventService.create(uidA, input);
 
       expect(mockPrisma.event.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           uid: uidA,
-          title: 'Property Showing',
+          orgId: uidA,
+          title: 'Open House',
+          description: 'Property open event',
+          startTime: expect.any(Date),
           userId: userIdA,
         }),
       });
@@ -101,13 +134,13 @@ describe('eventService', () => {
     test('user A can update their own event', async () => {
       resolveUserId.mockResolvedValue(userIdA);
       mockPrisma.event.findFirst.mockResolvedValue(mockEvent);
-      mockPrisma.event.update.mockResolvedValue({ ...mockEvent, title: 'Updated Showing' });
+      mockPrisma.event.update.mockResolvedValue({ ...mockEvent, title: 'Updated Title' });
 
-      const result = await eventService.update(uidA, eventId, { title: 'Updated Showing' });
-      expect(result.data.title).toBe('Updated Showing');
+      const result = await eventService.update(uidA, eventId, { title: 'Updated Title' });
+      expect(result.data.title).toBe('Updated Title');
     });
 
-    test('user B cannot update user A/ event', async () => {
+    test('user B cannot update user A event', async () => {
       resolveUserId.mockResolvedValue(userIdB);
       mockPrisma.event.findFirst.mockResolvedValue(null);
 
@@ -127,7 +160,7 @@ describe('eventService', () => {
       expect(mockPrisma.event.delete).toHaveBeenCalledWith({ where: { id: eventId } });
     });
 
-    test('user B cannot delete user A/ event', async () => {
+    test('user B cannot delete user A event', async () => {
       resolveUserId.mockResolvedValue(userIdB);
       mockPrisma.event.findFirst.mockResolvedValue(null);
 

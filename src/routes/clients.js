@@ -1,12 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const verifyUser = require('../middlewares/authMiddleware');
-const { validateClientData } = require('../middlewares/validate');
+const { sanitizeBody } = require('../middlewares/sanitize');
+const { validateClientData, validateQueryPagination } = require('../middlewares/validate');
+const { cacheMiddleware } = require('../middlewares/cache');
 const controller = require('../controllers/clientController');
 
-router.use(verifyUser);
+router.use(verifyUser, sanitizeBody);
 
-router.get('/', controller.list);
+router.get('/', validateQueryPagination, cacheMiddleware('clients'), controller.list);
 router.get('/:id', controller.getOne);
 router.post('/', validateClientData, controller.create);
 router.put('/:id', validateClientData, controller.update);

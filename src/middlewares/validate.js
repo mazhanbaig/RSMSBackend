@@ -1,7 +1,6 @@
 const { body, param, query, validationResult } = require("express-validator");
 const ResponseObj = require("../utils/ResponseObj");
 
-// Middleware to check validation results and return 400 if any errors
 function handleValidationErrors(req, res, next) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -12,7 +11,14 @@ function handleValidationErrors(req, res, next) {
     next();
 }
 
-// ─── Entity validators ──────────────────────────────────────────────
+const validateQueryPagination = [
+    query('page').optional().isInt({ min: 1 }).withMessage('page must be a positive integer'),
+    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('limit must be between 1 and 100'),
+    query('sortField').optional().isString().trim().escape(),
+    query('sortDir').optional().isIn(['asc', 'desc']).withMessage('sortDir must be asc or desc'),
+    query('search').optional().isString().trim().escape(),
+    handleValidationErrors,
+];
 
 const validateClientData = [
     body("name")
@@ -125,7 +131,6 @@ const validateTaskData = [
     handleValidationErrors,
 ];
 
-// ─── Images validators ─────────────────────────────────────────────
 const ALLOWED_MIME_TYPES = [
     "image/jpeg",
     "image/png",
@@ -134,18 +139,16 @@ const ALLOWED_MIME_TYPES = [
     "image/avif",
 ];
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_FILE_COUNT = 10;
 
 const validateImageUpload = (req, res, next) => {
     if (!req.files || req.files.length === 0) {
         return res.status(400).json(ResponseObj(false, "No files uploaded", null, "At least one file is required"));
     }
-
     if (req.files.length > MAX_FILE_COUNT) {
         return res.status(400).json(ResponseObj(false, "Too many files", null, `Maximum ${MAX_FILE_COUNT} files allowed`));
     }
-
     for (const file of req.files) {
         if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
             return res.status(400).json(
@@ -158,7 +161,6 @@ const validateImageUpload = (req, res, next) => {
             );
         }
     }
-
     next();
 };
 
@@ -171,7 +173,6 @@ const validateDeleteImage = [
     handleValidationErrors,
 ];
 
-// ─── Auth validators ───────────────────────────────────────────────
 const validateAuthData = [
     body("uid")
         .exists().withMessage("Missing uid")
@@ -183,9 +184,6 @@ const validateAuthData = [
     handleValidationErrors,
 ];
 
-// ─── Payment validators ────────────────────────────────────────────
-const PAYMENT_METHODS = ["jazzcash", "easypaisa"];
-
 const validatePaymentData = [
     body("amount")
         .exists().withMessage("Missing 'amount'")
@@ -196,7 +194,7 @@ const validatePaymentData = [
     body("selectedPayment")
         .exists().withMessage("Missing 'selectedPayment'")
         .isString().withMessage("selectedPayment must be a string")
-        .isIn(PAYMENT_METHODS).withMessage(`selectedPayment must be one of: ${PAYMENT_METHODS.join(", ")}`),
+        .isIn(["jazzcash", "easypaisa"]).withMessage("selectedPayment must be one of: jazzcash, easypaisa"),
     handleValidationErrors,
 ];
 
@@ -234,6 +232,7 @@ const validateInvoiceData = [
 ];
 
 module.exports = {
+    validateQueryPagination,
     validateClientData,
     validateOwnerData,
     validatePropertyData,

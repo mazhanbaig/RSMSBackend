@@ -4,9 +4,10 @@ const cors = require("cors");
 const helmet = require("helmet");
 const compression = require('compression');
 const pino = require('pino-http')();
-const { Redis } = require("@upstash/redis");
-const { Ratelimit } = require("@upstash/ratelimit");
 
+const { requestId } = require("./middlewares/requestId");
+const { sanitizeBody } = require("./middlewares/sanitize");
+const { cacheMiddleware } = require("./middlewares/cache");
 const paymentRoutes = require("./routes/payment");
 const paymentWebhookRoutes = require("./routes/paymentWebhook");
 const authRoutes = require("./routes/auth");
@@ -30,7 +31,24 @@ const app = express();
 
 app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "https:", "res.cloudinary.com", "images.unsplash.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+            connectSrc: ["'self'", "https://*.vercel.app", "https://*.upstash.io", "https://api.resend.com"],
+            frameSrc: ["'none'"],
+            objectSrc: ["'none'"],
+            baseUri: ["'self'"],
+            formAction: ["'self'"],
+        },
+    },
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    crossOriginOpenerPolicy: { policy: "same-origin" },
+    crossOriginEmbedderPolicy: false,
 }));
 app.use(compression({ level: 6, threshold: 1024 }));
 app.use(pino);
@@ -43,119 +61,62 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
         'http://localhost:3002',
         'http://127.0.0.1:3000',
         'https://zstate.vercel.app',
+        'https://www.zstate.vercel.app',
     ];
 
-app.use(cors({
+const corsOptions = {
     origin: (origin, cb) => {
         if (!origin) return cb(null, true);
         if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-        if (process.env.NODE_ENV !== 'production' && /^http:\/\/localhost(:\d+)?$/.test(origin)) return cb(null, true);
-        cb(null, false);
+        if (process.env.NODE_ENV !== 'production' && /^https?:\/\/localhost(:\d+)?$/.test(origin)) return cb(null, true);
+        cb(new Error('CORS policy: origin not allowed'));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-TOTP-Code', 'X-Requested-With'],
-}));
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-TOTP-Code', 'X-Requested-With', 'X-Request-Id'],
+    maxAge: 86400,
+};
+
+app.use(cors(corsOptions));
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(requestId);
+app.use(sanitizeBody);
 
 // ─── Rate Limiting ────────────────────────────────────────────────────
-// Rate limiting uses Upstash Redis for shared state across Vercel serverless instances.
-// If UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN are not set, rate limiting
-// falls back to in-memory (which won't work across serverless instances — a warning is logged).
-//
-// Global limiter: 100 requests per 15 min per IP UNLESS using Upstash Redis, where
-// we use @upstash/ratelimit's sliding window (more accurate for serverless).
+const { rateLimitMiddleware, initRateLimit } = require("./middlewares/rateLimit");
+const rateLimit = require("express-rate-limit");
 
-let globalLimiter, strictLimiter, adminLimiter;
+(async () => {
+    await initRateLimit();
+})();
 
-const keyGenerator = (req) => req.headers['x-vercel-forwarded-for']?.split(',')[0]?.trim?.() || req.headers['x-forwarded-for']?.split(',')[0]?.trim?.() || req.ip || 'unknown';
-const rateLimitOptions = { windowMs: 15 * 60 * 1000, keyGenerator, standardHeaders: true, legacyHeaders: false, message: { success: false, message: "Too many requests" } };
+const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    keyGenerator: (req) => req.ip || "unknown",
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: "Too many requests" },
+    max: 100,
+});
 
-if (process.env.LIVE_TEST === 'true' && process.env.NODE_ENV !== 'production') {
-    const rateLimit = require("express-rate-limit");
-    globalLimiter = rateLimit({ ...rateLimitOptions, max: 10000 });
-    strictLimiter = rateLimit({ ...rateLimitOptions, max: 10000 });
-    adminLimiter = rateLimit({ ...rateLimitOptions, max: 10000 });
-    console.log("Rate limiting: LIVE_TEST mode — limits raised to 10000/15min");
-} else if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-    const redis = new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    });
+const strictLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    keyGenerator: (req) => req.ip || "unknown",
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: "Too many requests - sensitive endpoint" },
+    max: 30,
+});
 
-    const globalRatelimit = new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(100, '15 m'),
-        prefix: "rsms:global",
-    });
-
-    const strictRatelimit = new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(30, '15 m'),
-        prefix: "rsms:strict",
-    });
-
-    const adminRatelimit = new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(10, '15 m'),
-        prefix: "rsms:admin",
-    });
-
-    globalLimiter = (req, res, next) => {
-        globalRatelimit.limit(req.ip).then(({ success }) => {
-            if (!success) {
-                return res.status(429).json({ success: false, message: "Too many requests, please try again later" });
-            }
-            next();
-        }).catch(() => next());
-    };
-
-    strictLimiter = (req, res, next) => {
-        strictRatelimit.limit(req.ip).then(({ success }) => {
-            if (!success) {
-                return res.status(429).json({ success: false, message: "Too many requests, please try again later" });
-            }
-            next();
-        }).catch(() => next());
-    };
-
-    adminLimiter = (req, res, next) => {
-        adminRatelimit.limit(req.ip).then(({ success }) => {
-            if (!success) {
-                return res.status(429).json({ success: false, message: "Too many requests, please try again later" });
-            }
-            next();
-        }).catch(() => next());
-    };
-
-    console.log("Rate limiting: Using Upstash Redis (shared store for serverless)");
-} else {
-    // Fallback: in-memory store (NOT shared across Vercel instances — warn)
-    console.warn("Rate limiting: UPSTASH_REDIS_REST_URL/REST_TOKEN not set — falling back to in-memory store. Rate limiting will NOT be shared across serverless instances.");
-
-    const rateLimit = require("express-rate-limit");
-
-    globalLimiter = rateLimit({ ...rateLimitOptions, max: 100 });
-    strictLimiter = rateLimit({ ...rateLimitOptions, max: 30 });
-    adminLimiter = rateLimit({ ...rateLimitOptions, max: 10 });
-}
-
-app.use(globalLimiter);
-
-// ─── Unauthenticated Health Check (before route mountings) ────────────
-app.get("/api/health", (req, res) => {
-    res.json({
-        success: true,
-        message: "OK",
-        data: {
-            timestamp: new Date().toISOString(),
-            uptime: process.uptime(),
-            nodeVersion: process.version,
-            environment: process.env.NODE_ENV || 'development',
-        },
-    });
+const adminLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    keyGenerator: (req) => req.ip || "unknown",
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: "Too many requests - admin endpoint" },
+    max: 10,
 });
 
 // Stricter limiter for auth and data mutation endpoints

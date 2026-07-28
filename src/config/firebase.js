@@ -29,35 +29,38 @@ if (admin.apps.length === 0) {
     try {
         let rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
 
-        // Vercel stores FIREBASE_PRIVATE_KEY with literal \n sequences when pasted
-        // as a single line (the most common approach). Replace those with actual
-        // newline characters so admin.cert() can parse the PEM correctly.
-        // If the key already has real newlines this is a no-op.
-        if (rawKey) {
-            // Handle both \\n (local .env double-escape) and \n (Vercel single-escape)
-            rawKey = rawKey.replace(/\\\\n/g, '\n').replace(/\\n/g, '\n');
-            // The second replace is a no-op if \\n was already handled above
+        if (!rawKey || typeof rawKey !== 'string') {
+            throw new Error('FIREBASE_PRIVATE_KEY environment variable is missing or not a string');
         }
 
+        const trimmedKey = rawKey.trim();
+        if (!trimmedKey.includes('-----BEGIN PRIVATE KEY-----') || !trimmedKey.includes('-----END PRIVATE KEY-----')) {
+            throw new Error('FIREBASE_PRIVATE_KEY does not contain valid PEM headers');
+        }
+
+        if (!trimmedKey.startsWith('-----BEGIN PRIVATE KEY-----') || !trimmedKey.includes('\n')) {
+            throw new Error('FIREBASE_PRIVATE_KEY format is invalid (missing newlines)');
+        }
+
+        rawKey = trimmedKey;
+
         const projectId = resolveFirebaseProjectId();
-        const serviceAccount = {
-            projectId,
-            privateKey: rawKey,
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        };
-
-        console.log('Initializing Firebase with projectId:', projectId);
-        console.log('Private key has correct format:', rawKey.includes('-----BEGIN PRIVATE KEY-----'));
-        console.log('Private key length:', rawKey.length);
-
         if (!projectId) {
             throw new Error(
                 'FIREBASE_PROJECT_ID is missing and could not be derived from FIREBASE_CLIENT_EMAIL'
             );
         }
 
+        console.log('Initializing Firebase with projectId:', projectId);
+        console.log('Private key has correct format:', rawKey.includes('-----BEGIN PRIVATE KEY-----'));
+        console.log('Private key length:', rawKey.length);
+
         admin.initializeApp({
-            credential: admin.cert(serviceAccount),
+            credential: admin.cert({
+                projectId,
+                privateKey: rawKey,
+                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            }),
             databaseURL: process.env.FIREBASE_DATABASE_URL,
         });
         console.log('Firebase Admin initialized successfully');

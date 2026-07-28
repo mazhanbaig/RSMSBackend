@@ -28,6 +28,18 @@ async function resolveUserId(uid) {
     return null;
 }
 
+async function resolveUser(uid) {
+    const cached = uidCache.get(uid);
+    if (cached && Date.now() - cached.ts < CACHE_TTL) return { id: cached.id, orgId: cached.orgId };
+    const p = getPrisma();
+    const user = await p.user.findUnique({ where: { uid }, select: { id: true, orgId: true } });
+    if (user) {
+        uidCache.set(uid, { id: user.id, orgId: user.orgId, ts: Date.now() });
+        return { id: user.id, orgId: user.orgId };
+    }
+    return null;
+}
+
 function clearUidCache(uid) {
     uidCache.delete(uid);
 }
@@ -37,4 +49,4 @@ process.on('SIGINT', async () => {
     process.exit(0);
 });
 
-module.exports = { getPrisma, resolveUserId, clearUidCache };
+module.exports = { getPrisma, resolveUserId, resolveUser, clearUidCache };
