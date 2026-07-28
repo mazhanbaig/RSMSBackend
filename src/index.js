@@ -201,6 +201,19 @@ app.use((err, req, res, next) => {
     next(err);
 });
 
+// ─── Root / Health Redirect ───────────────────────────────────────
+app.get("/", (req, res) => {
+    res.json({
+        success: true,
+        message: "RSMS Backend API",
+        data: {
+            api: "/api/health",
+            version: "1.0.0",
+            timestamp: new Date().toISOString(),
+        },
+    });
+});
+
 // ─── 404 Handler ────────────────────────────────────────────────────
 app.use((req, res) => {
     res.status(404).json({
