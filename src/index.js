@@ -70,11 +70,14 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 let globalLimiter, strictLimiter, adminLimiter;
 
+const keyGenerator = (req) => req.headers['x-vercel-forwarded-for']?.split(',')[0]?.trim?.() || req.headers['x-forwarded-for']?.split(',')[0]?.trim?.() || req.ip || 'unknown';
+const rateLimitOptions = { windowMs: 15 * 60 * 1000, keyGenerator, standardHeaders: true, legacyHeaders: false, message: { success: false, message: "Too many requests" } };
+
 if (process.env.LIVE_TEST === 'true' && process.env.NODE_ENV !== 'production') {
     const rateLimit = require("express-rate-limit");
-    globalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10000, standardHeaders: true, legacyHeaders: false, message: { success: false, message: "Too many requests" } });
-    strictLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10000, standardHeaders: true, legacyHeaders: false, message: { success: false, message: "Too many requests" } });
-    adminLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10000, standardHeaders: true, legacyHeaders: false, message: { success: false, message: "Too many requests" } });
+    globalLimiter = rateLimit({ ...rateLimitOptions, max: 10000 });
+    strictLimiter = rateLimit({ ...rateLimitOptions, max: 10000 });
+    adminLimiter = rateLimit({ ...rateLimitOptions, max: 10000 });
     console.log("Rate limiting: LIVE_TEST mode — limits raised to 10000/15min");
 } else if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
     const redis = new Redis({
@@ -134,29 +137,9 @@ if (process.env.LIVE_TEST === 'true' && process.env.NODE_ENV !== 'production') {
 
     const rateLimit = require("express-rate-limit");
 
-    globalLimiter = rateLimit({
-        windowMs: 15 * 60 * 1000,
-        max: 100,
-        standardHeaders: true,
-        legacyHeaders: false,
-        message: { success: false, message: "Too many requests, please try again later" },
-    });
-
-    strictLimiter = rateLimit({
-        windowMs: 15 * 60 * 1000,
-        max: 30,
-        standardHeaders: true,
-        legacyHeaders: false,
-        message: { success: false, message: "Too many requests, please try again later" },
-    });
-
-    adminLimiter = rateLimit({
-        windowMs: 15 * 60 * 1000,
-        max: 10,
-        standardHeaders: true,
-        legacyHeaders: false,
-        message: { success: false, message: "Too many requests, please try again later" },
-    });
+    globalLimiter = rateLimit({ ...rateLimitOptions, max: 100 });
+    strictLimiter = rateLimit({ ...rateLimitOptions, max: 30 });
+    adminLimiter = rateLimit({ ...rateLimitOptions, max: 10 });
 }
 
 app.use(globalLimiter);
