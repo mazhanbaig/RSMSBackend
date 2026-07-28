@@ -25,7 +25,7 @@ function resolveFirebaseProjectId() {
     return undefined;
 }
 
-if (admin.getApps().length === 0) {
+if (admin.apps.length === 0) {
     try {
         let rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
 
