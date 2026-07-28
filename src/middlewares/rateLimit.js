@@ -1,5 +1,5 @@
 const { Ratelimit } = require("@upstash/redis");
-const { MemoryCache } = require("./cache");
+const { MemoryCache } = require("../utils/cache");
 
 let redis, redisRatelimit, memoryCache;
 

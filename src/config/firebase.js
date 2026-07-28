@@ -1,4 +1,5 @@
 const admin = require('firebase-admin');
+const { cert } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getDatabase } = require('firebase-admin/database');
 
@@ -38,11 +39,10 @@ if (admin.apps.length === 0) {
             throw new Error('FIREBASE_PRIVATE_KEY does not contain valid PEM headers');
         }
 
-        if (!trimmedKey.startsWith('-----BEGIN PRIVATE KEY-----') || !trimmedKey.includes('\n')) {
-            throw new Error('FIREBASE_PRIVATE_KEY format is invalid (missing newlines)');
-        }
-
-        rawKey = trimmedKey;
+        rawKey = trimmedKey
+            .replace(/\\n/g, '\n')
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n');
 
         const projectId = resolveFirebaseProjectId();
         if (!projectId) {
@@ -51,23 +51,16 @@ if (admin.apps.length === 0) {
             );
         }
 
-        console.log('Initializing Firebase with projectId:', projectId);
-        console.log('Private key has correct format:', rawKey.includes('-----BEGIN PRIVATE KEY-----'));
-        console.log('Private key length:', rawKey.length);
-
         admin.initializeApp({
-            credential: admin.cert({
+            credential: cert({
                 projectId,
                 privateKey: rawKey,
                 clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
             }),
             databaseURL: process.env.FIREBASE_DATABASE_URL,
         });
-        console.log('Firebase Admin initialized successfully');
     } catch (err) {
         firebaseInitError = err.message;
-        console.error('Firebase Admin initialization error:', err.message);
-        console.error('Full error:', err);
     }
 }
 
@@ -75,15 +68,8 @@ try {
     db = getDatabase();
     auth = getAuth();
     firebaseInitialized = true;
-    console.log('Firebase Admin initialized successfully. auth:', !!auth);
 } catch (err) {
     firebaseAuthError = err.message;
-    console.error('Firebase getDatabase/getAuth error:', err.message);
-    console.error('Full error:', err);
-    console.error('FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID);
-    console.error('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL);
-    console.error('FIREBASE_PRIVATE_KEY exists:', !!process.env.FIREBASE_PRIVATE_KEY);
-    console.error('FIREBASE_DATABASE_URL:', process.env.FIREBASE_DATABASE_URL);
 }
 
 module.exports = { admin, db, auth, firebaseInitialized, firebaseInitError, firebaseAuthError };

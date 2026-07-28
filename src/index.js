@@ -5,7 +5,7 @@ const helmet = require("helmet");
 const compression = require('compression');
 const pino = require('pino-http')();
 
-const { requestId } = require("./middlewares/requestId");
+const requestId = require("./middlewares/requestId");
 const { sanitizeBody } = require("./middlewares/sanitize");
 const { cacheMiddleware } = require("./middlewares/cache");
 const paymentRoutes = require("./routes/payment");
@@ -101,6 +101,7 @@ app.use(sanitizeBody);
 // ─── Rate Limiting ────────────────────────────────────────────────────
 const { rateLimitMiddleware, initRateLimit } = require("./middlewares/rateLimit");
 const rateLimit = require("express-rate-limit");
+const { ipKeyGenerator } = require("express-rate-limit");
 
 (async () => {
     await initRateLimit();
@@ -108,7 +109,7 @@ const rateLimit = require("express-rate-limit");
 
 const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    keyGenerator: (req) => req.ip || "unknown",
+    keyGenerator: (req) => ipKeyGenerator(req),
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: "Too many requests" },
@@ -117,7 +118,7 @@ const globalLimiter = rateLimit({
 
 const strictLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    keyGenerator: (req) => req.ip || "unknown",
+    keyGenerator: (req) => ipKeyGenerator(req),
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: "Too many requests - sensitive endpoint" },
@@ -126,7 +127,7 @@ const strictLimiter = rateLimit({
 
 const adminLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    keyGenerator: (req) => req.ip || "unknown",
+    keyGenerator: (req) => ipKeyGenerator(req),
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: "Too many requests - admin endpoint" },
