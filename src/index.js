@@ -64,19 +64,8 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
         'https://www.zstate.vercel.app',
     ];
 
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',')
-    : [
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'http://localhost:3002',
-        'http://127.0.0.1:3000',
-        'https://zstate.vercel.app',
-        'https://www.zstate.vercel.app',
-    ];
-
 // Enhanced CORS configuration with proper error handling
-corsOptions = {
+const corsOptionsConfig = {
     origin: (origin, cb) => {
         // Allow requests from the allowed origins
         if (!origin) {
@@ -93,7 +82,7 @@ corsOptions = {
         }
         
         // For security, reject with explicit error
-        console.error(`CORS blocked: origin not allowed", origin);
+        console.error(`CORS blocked: origin not allowed`, origin);
         return cb(new Error('CORS policy: origin not allowed'), false);
     },
     credentials: true,
@@ -102,7 +91,7 @@ corsOptions = {
     maxAge: 86400,
 };
 
-app.use(cors(corsOptions));
+app.use(cors(corsOptionsConfig));
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
