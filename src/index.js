@@ -64,12 +64,37 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
         'https://www.zstate.vercel.app',
     ];
 
-const corsOptions = {
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : [
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:3002',
+        'http://127.0.0.1:3000',
+        'https://zstate.vercel.app',
+        'https://www.zstate.vercel.app',
+    ];
+
+// Enhanced CORS configuration with proper error handling
+corsOptions = {
     origin: (origin, cb) => {
-        if (!origin) return cb(null, true);
-        if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-        if (process.env.NODE_ENV !== 'production' && /^https?:\/\/localhost(:\d+)?$/.test(origin)) return cb(null, true);
-        cb(new Error('CORS policy: origin not allowed'));
+        // Allow requests from the allowed origins
+        if (!origin) {
+            // For non-browser requests, allow (e.g., server-to-server)
+            return cb(null, true);
+        }
+        
+        if (ALLOWED_ORIGINS.includes(origin)) {
+            return cb(null, true);
+        }
+        
+        if (process.env.NODE_ENV !== 'production' && /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+            return cb(null, true);
+        }
+        
+        // For security, reject with explicit error
+        console.error(`CORS blocked: origin not allowed", origin);
+        return cb(new Error('CORS policy: origin not allowed'), false);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
