@@ -1,219 +1,321 @@
 # API Reference
 
-**Base URL (development):** `http://localhost:5000/api`  
-**Base URL (production):** Vercel serverless function URL
+**Base URL (development):** `http://localhost:5000`  
+**Base URL (production):** Vercel serverless function (e.g. `https://backendrsms.vercel.app`)
 
-**Auth:** All protected endpoints require a Firebase ID token in the `Authorization` header: `Authorization: Bearer <token>`
+**Auth:** Most endpoints require a Firebase ID token in the `Authorization` header:  
+`Authorization: Bearer <token>`
 
 **Response envelope:**
 ```json
-{ "success": true, "data": { ... } }
-{ "success": false, "message": "Error description" }
+{ "success": true, "data": { ... }, "message": "ok" }
+{ "success": false, "message": "Error description", "data": null, "error": null }
 ```
 
 ---
 
-## Authentication (No auth required for most)
+## Authentication (`/api/auth`)
 
 ### POST /api/auth/signup
-Register a new user (creates Firebase Auth account + User record).
-**Body:** `{ email, password, firstName, lastName, phone?, role? }`
-**Response:** `{ user, token }`
+Register. **Body:** `{ email, password, name?, orgName? }`
 
 ### POST /api/auth/login
-**Body:** `{ email, password }`
-**Response:** `{ user, token }`
+**Body:** `{ email, password }` **Response:** `{ user, token }`
 
 ### POST /api/auth/logout
-**Headers:** Bearer token required.
-**Response:** `{ success: true }`
+**Headers:** Bearer token.
 
 ### POST /api/auth/forgot-password
 **Body:** `{ email }`
-**Response:** `{ success: true }`
 
 ### POST /api/auth/verify-otp
-**Body:** `{ email, otp }`
-**Response:** `{ success: true, resetToken }`
+**Body:** `{ email, otp }` **Response:** `{ resetToken }`
 
 ### POST /api/auth/reset-password
 **Body:** `{ resetToken, newPassword }`
-**Response:** `{ success: true }`
 
 ### GET /api/auth/profile
-**Auth:** Required. Returns the authenticated user's profile.
+**Auth.** Returns current user profile.
 
 ### PUT /api/auth/profile
-**Auth:** Required. Update profile. **Body:** `{ firstName?, lastName?, phone?, avatarUrl? }`
+**Auth.** Update profile. **Body:** `{ name?, photoURL?, phone? }`
 
 ### POST /api/auth/refresh-token
-**Auth:** Required. Returns a new Firebase token.
-
-### GET /api/auth/verify-session
-**Auth:** Required. Validates the current session is still active.
+**Auth.** Returns refreshed token.
 
 ---
 
-## Users (Admin only)
+## Clients (`/api/clients`) — Strict rate limit
 
-### GET /api/users
-List all users. **Query:** `?role=TENANT&page=1&limit=20&search=`
+### GET /api/clients
+List. **Query:** `?page=&limit=&search=&pipelineStage=`
 
-### GET /api/users/:id
-Get user by ID.
+### GET /api/clients/:id
+Get one.
 
-### POST /api/users
-Create a user (admin). **Body:** `{ email, firstName, lastName, role, phone? }`
+### POST /api/clients
+Create. **Body:** `{ name, email?, phone?, budgetMin?, budgetMax?, preferences?, pipelineStage? }`
 
-### PUT /api/users/:id
-Update any user.
+### PUT /api/clients/:id
+Update.
 
-### DELETE /api/users/:id
-Soft‑delete (set `isActive = false`).
+### DELETE /api/clients/:id
+Remove.
 
----
-
-## Properties
-
-### GET /api/property
-List properties. **Query:** `?type=APARTMENT&city=&isPublished=true&page=&limit=`
-**Auth:** Optional. Public listing when `isPublished=true`.
-
-### GET /api/property/:id
-Get property with units.
-
-### POST /api/property
-**Auth:** Required (Manager+). **Body:** `{ name, address, city, state, zipCode, type, totalUnits, amenities?, images? }`
-
-### PUT /api/property/:id
-**Auth:** Required (Manager+). Update property.
-
-### DELETE /api/property/:id
-**Auth:** Required (Manager+). Soft‑delete (unlinks units).
-
-### GET /api/property/:id/units
-List units for a property.
-
-### POST /api/property/:id/units
-**Auth:** Required. Add a unit.
-
-### GET /api/property/public
-**No auth.** Public‑facing property listing for the frontend landing page.
+### PATCH /api/clients/:id/pipeline
+Update pipeline stage. **Body:** `{ pipelineStage }`
 
 ---
 
-## Units
+## Owners (`/api/owners`) — Strict rate limit
 
-### GET /api/units/:id
-Get unit details including current lease.
+### GET /api/owners
+**Query:** `?page=&limit=&search=`
 
-### PUT /api/units/:id
-**Auth:** Required. Update unit (rent, status, etc.).
+### GET /api/owners/:id
 
-### DELETE /api/units/:id
-**Auth:** Required. Remove unit.
+### POST /api/owners
+**Body:** `{ name, email?, phone?, notes? }`
 
----
+### PUT /api/owners/:id
 
-## Leases
-
-### GET /api/lease/agreement
-List leases. **Query:** `?status=ACTIVE&tenantId=&unitId=&page=&limit=`
-
-### POST /api/lease/agreement
-**Auth:** Required (Manager+). Create lease. **Body:** `{ unitId, tenantId, startDate, endDate, rentAmount, depositAmount?, terms? }`
-
-### GET /api/lease/agreement/:id
-Get lease with related payments and documents.
-
-### PUT /api/lease/agreement/:id
-Update lease. Used for renewals, term changes.
-
-### DELETE /api/lease/agreement/:id
-Terminate lease (sets status to TERMINATED).
-
-### GET /api/lease/agreement/:id/payments
-List all payments for a lease.
-
-### GET /api/lease/agreement/:id/documents
-List all documents for a lease.
+### DELETE /api/owners/:id
 
 ---
 
-## Payments
+## Properties (`/api/properties`) — Strict rate limit
 
-### GET /api/payment
-**Auth:** Required. List payments. **Query:** `?status=PAID&leaseId=&type=RENT&from=&to=`
+### GET /api/properties
+**Query:** `?page=&limit=&city=&status=&propertyType=&featured=&search=`
 
-### POST /api/payment
-**Auth:** Required. Record a payment. **Body:** `{ leaseId, amount, type, method, dueDate, description? }`
+### GET /api/properties/:id
 
-### GET /api/payment/:id
-Get payment details.
+### POST /api/properties
+**Body:** `{ title, description?, price?, status?, address?, city?, propertyType?, bedrooms?, bathrooms?, images?, ownerId?, clientId? }`
 
-### PUT /api/payment/:id
-Update payment (e.g., mark as refunded).
+### PUT /api/properties/:id
 
-### DELETE /api/payment/:id
-**Auth:** Admin only. Remove a payment record.
+### DELETE /api/properties/:id
 
----
+### PATCH /api/properties/:id/feature
+Toggle featured. **Body:** `{ featured: boolean }`
 
-## Maintenance
-
-### GET /api/maintenance
-List maintenance requests. **Query:** `?status=PENDING&priority=HIGH&leaseId=&page=&limit=`
-
-### POST /api/maintenance
-**Auth:** Required. Create request. **Body:** `{ leaseId, title, description, priority }`
-
-### PUT /api/maintenance/:id
-Update status, assign staff. **Auth:** Manager+.
-
-### DELETE /api/maintenance/:id
-**Auth:** Admin only.
-
-### GET /api/maintenance/stats
-**Auth:** Manager+. Aggregate stats (open/resolved counts, avg resolution time).
+### PATCH /api/properties/:id/custom-fields
+Update custom fields. **Body:** `{ customFields: { ... } }`
 
 ---
 
-## Dashboard
+## Events (`/api/events`) — Strict rate limit
 
-### GET /api/dashboard/stats
-**Auth:** Required. Returns role‑specific dashboard aggregates (total properties, active leases, pending payments, open maintenance requests). Uses caching.
+### GET /api/events
+**Query:** `?page=&limit=&startDate=&endDate=`
 
----
+### GET /api/events/:id
 
-## Notifications
+### POST /api/events
+**Body:** `{ title, description?, startTime, clientId?, propertyId? }`
 
-### GET /api/notification
-**Auth:** Required. List notifications for the current user. **Query:** `?isRead=false&page=&limit=`
+### PUT /api/events/:id
 
-### PUT /api/notification/:id/read
-Mark single notification as read.
-
-### PUT /api/notification/read-all
-Mark all notifications as read.
-
-### DELETE /api/notification/:id
-Delete a notification.
+### DELETE /api/events/:id
 
 ---
 
-## Communication (Messages)
+## Tasks (`/api/tasks`) — Strict rate limit
 
-### GET /api/communication/messages
-**Auth:** Required. List conversations (threads grouped by participant).
+### GET /api/tasks
+**Query:** `?page=&limit=&completed=&priority=`
 
-### POST /api/communication/messages
-**Auth:** Required. Send a message. **Body:** `{ receiverId, subject, body }`
+### GET /api/tasks/:id
 
-### GET /api/communication/messages/:conversationId
-Get message thread.
+### POST /api/tasks
+**Body:** `{ title, description?, priority, dueDate?, clientId?, propertyId? }`
 
-### PUT /api/communication/messages/:id/read
-Mark message as read.
+### PUT /api/tasks/:id
+
+### DELETE /api/tasks/:id
+
+---
+
+## Tools (`/api/tools`)
+
+### GET /api/tools/emi-calculator
+**Query:** `?amount=&rate=&term=` — Calculate EMI.
+
+---
+
+## Analytics (`/api/analytics`)
+
+### GET /api/analytics/overview
+Dashboard stats (properties, clients, events, tasks counts).
+
+### GET /api/analytics/clients-by-stage
+Pipeline stage distribution.
+
+### GET /api/analytics/properties-timeline
+Properties added over time.
+
+---
+
+## Invoices (`/api/invoices`) — Strict rate limit
+
+### GET /api/invoices
+**Query:** `?page=&limit=&status=&clientId=`
+
+### GET /api/invoices/:id
+
+### POST /api/invoices
+**Body:** `{ title, amount, commission, tax?, total, status?, dueDate?, clientId?, propertyId?, notes? }`
+
+### PUT /api/invoices/:id
+
+### DELETE /api/invoices/:id
+
+---
+
+## Approvals (`/api/approvals`) — Strict rate limit
+
+### GET /api/approvals
+List approval requests. **Query:** `?status=pending&page=&limit=`
+
+### POST /api/approvals
+Create a request. **Body:** `{ title, description?, targetType, targetId?, action, payload?, reviewerId? }`
+
+### PUT /api/approvals/:id/review
+Review (approve/reject). **Body:** `{ status: "approved"|"rejected", notes? }`
+
+---
+
+## Payment (`/api/payment`)
+
+### POST /api/payment/jazzcash
+Initiate JazzCash payment.
+
+### POST /api/payment/jazzcash/webhook
+JazzCash webhook callback.
+
+### POST /api/payment/easypaisa
+Initiate EasyPaisa payment.
+
+---
+
+## Admin (`/api/admin`) — Admin only, strict rate limit (10/min)
+
+### POST /api/admin/mfa/enroll
+Enroll admin MFA.
+
+### POST /api/admin/mfa/verify-enrollment
+Verify MFA enrollment.
+
+### GET /api/admin/mfa/status
+Check MFA status.
+
+### GET /api/admin/users
+List all users. **Query:** `?page=&limit=`
+
+### GET /api/admin/users/:uid
+Get user by UID.
+
+### POST /api/admin/users/:uid/suspend
+Suspend user. **Body:** `{ reason }`
+
+### POST /api/admin/users/:uid/unsuspend
+Unsuspend user.
+
+### GET /api/admin/users/:uid/mfa-status
+Get user MFA status.
+
+### GET /api/admin/organizations
+List orgs.
+
+### GET /api/admin/security/overview
+Security dashboard overview.
+
+### GET /api/admin/security/audit-log
+Audit log entries.
+
+### GET /api/admin/security/vulnerabilities
+Security vulnerabilities report.
+
+### GET /api/admin/system/health
+System health check.
+
+### GET /api/admin/community/posts
+List all community posts.
+
+### POST /api/admin/community/posts/:id/hide
+Hide a post.
+
+### POST /api/admin/community/posts/:id/unhide
+Unhide a post.
+
+### GET /api/admin/property-shares/overview
+Share links overview.
+
+### GET /api/admin/chat-threads/overview
+Chat threads overview.
+
+---
+
+## Activity (`/api/activity`) — Strict rate limit
+
+### GET /api/activity
+Recent activity log. **Query:** `?page=&limit=&entityType=`
+
+---
+
+## Community (`/api/community`) — Strict rate limit
+
+### GET /api/community/posts
+List community posts.
+
+### POST /api/community/posts
+Create a post. **Body:** `{ title, content, scope: "org"|"global" }`
+
+### GET /api/community/posts/:id
+Get post with comments.
+
+### POST /api/community/posts/:id/comments
+Add comment. **Body:** `{ content }`
+
+### DELETE /api/community/posts/:id
+Delete own post.
+
+---
+
+## Share Links (`/api/share`)
+
+### POST /api/share/property
+Create property share link. **Body:** `{ propertyId, sharedWithName? }`
+
+### GET /api/share/property/:token
+Access shared property (public, no auth).
+
+### POST /api/share/property/:token/visit
+Record visitor. **Body:** `{ name, phone }`
+
+---
+
+## Chat (`/api/chat`)
+
+### GET /api/chat/threads
+List agent's chat threads.
+
+### GET /api/chat/threads/:id
+Get a thread (with messages).
+
+### POST /api/chat/threads/:id/message
+Send message. **Body:** `{ content }`
+
+### PATCH /api/chat/threads/:id/status
+Update status. **Body:** `{ status: "active"|"closed" }`
+
+---
+
+## Images (`/api/images`)
+
+### POST /api/images/upload
+Upload image. Returns Cloudinary URL.
 
 ---
 
@@ -227,6 +329,7 @@ Mark message as read.
 | 401 | Unauthorized (missing/invalid token) |
 | 403 | Forbidden (insufficient role) |
 | 404 | Not Found |
-| 409 | Conflict (duplicate email, etc.) |
+| 409 | Conflict (duplicate) |
+| 413 | Payload Too Large (>1 MB) |
 | 429 | Rate Limited |
 | 500 | Internal Server Error |
